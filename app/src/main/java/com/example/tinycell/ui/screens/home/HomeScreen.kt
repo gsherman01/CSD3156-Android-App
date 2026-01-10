@@ -20,13 +20,26 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tinycell.ui.screens.home.HomeViewModel
 
 
+// for mutable StateFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue // for keyword "by"
+
+
 //experimental feature  of Material 3
 @OptIn(ExperimentalMaterial3Api::class)
+/*
+=== UI LAYER/ Composable
+ */
 @Composable
 fun HomeScreen(navController: NavController) {
     val viewModel: HomeViewModel = viewModel();
     //val viewModel: ProfileViewModel = viewModel<ProfileViewModel>();
     //val viewModel = HomeViewModel()
+
+    //val listings by viewModel.listings.collectAsState()
+    val listings by viewModel.listings.collectAsState(initial = emptyList())
+
+
 
     Scaffold(
         topBar = {
@@ -38,7 +51,7 @@ fun HomeScreen(navController: NavController) {
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            items(viewModel.listings) { listing ->
+            items(listings) { listing ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()

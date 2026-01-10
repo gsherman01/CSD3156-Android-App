@@ -58,4 +58,18 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation("androidx.navigation:navigation-compose:2.8.3"); //new added for naviga1tion
+
+
 }
+
+
+/*
+if I want to be  explicit
+dependencies {
+    implementation("androidx.compose.ui:ui:1.5.1")
+    implementation("androidx.compose.material3:material3:1.1.1")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.5.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
+}
+
+ */
