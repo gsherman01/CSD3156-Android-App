@@ -1,5 +1,6 @@
-package com.example.tinycell.ui.camera
+package com.example.tinycell.ui.screens.camera
 
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tinycell.data.repository.CameraRepository
@@ -7,9 +8,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-
-import androidx.camera.lifecycle.ProcessCameraProvider
-
 
 /**
  * TODO: Camera UI State Management
@@ -55,8 +53,7 @@ class CameraViewModel(private val cameraRepository: CameraRepository) : ViewMode
     }
 }
 
-
-    /*
+/*
     Risk Assessment:
 •
 Dependency Injection:
