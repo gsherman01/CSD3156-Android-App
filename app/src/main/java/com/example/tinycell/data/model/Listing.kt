@@ -1,9 +1,15 @@
 package com.example.tinycell.data.model
 
+/**
+ * Represents a marketplace listing.
+ * Designed to support future expansion with images, descriptions, and seller details.
+ */
 data class Listing(
     val id: String,
     val title: String,
     val price: Double,
     val category: String,
-    val sellerName: String
+    val sellerName: String,
+    val description: String? = null,  // Optional description for detail screen
+    val imageUrl: String? = null      // Optional image URL (placeholder-ready for AsyncImage)
 )
