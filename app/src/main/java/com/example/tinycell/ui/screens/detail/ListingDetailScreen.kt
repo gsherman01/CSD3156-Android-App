@@ -7,12 +7,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tinycell.data.local.AppDatabase
+import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.ui.components.PriceTag
 
 /**
@@ -40,11 +48,39 @@ import com.example.tinycell.ui.components.PriceTag
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListingDetailScreen(listingId: String) {
-    val viewModel = ListingDetailViewModel(listingId)
+    // Get application context to initialize database
+    val context = LocalContext.current
+
+    // Create ViewModel with database dependencies
+    // TODO: Replace with proper DI (Hilt/Koin) in production
+    val viewModel: ListingDetailViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val database = AppDatabase.getDatabase(context)
+                val repository = ListingRepository(database.listingDao())
+                @Suppress("UNCHECKED_CAST")
+                return ListingDetailViewModel(repository, listingId) as T
+            }
+        }
+    )
+
+    val listing by viewModel.listing.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val scrollState = rememberScrollState()
 
+    // Show loading indicator
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
     // Handle listing data (null safety)
-    viewModel.listing?.let { listing ->
+    listing?.let { listingData ->
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -88,7 +124,7 @@ fun ListingDetailScreen(listingId: String) {
                 ) {
                     // Title - Prominent, bold
                     Text(
-                        text = listing.title,
+                        text = listingData.title,
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold
                         ),
@@ -99,7 +135,7 @@ fun ListingDetailScreen(listingId: String) {
 
                     // Price - Large, primary color (Carousell style)
                     PriceTag(
-                        price = listing.price,
+                        price = listingData.price,
                         textStyle = MaterialTheme.typography.displaySmall.copy(
                             fontWeight = FontWeight.Bold
                         )
@@ -123,7 +159,7 @@ fun ListingDetailScreen(listingId: String) {
                             // Category
                             InfoRow(
                                 label = "Category",
-                                value = listing.category
+                                value = listingData.category
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -133,13 +169,13 @@ fun ListingDetailScreen(listingId: String) {
                             // Seller
                             InfoRow(
                                 label = "Seller",
-                                value = listing.sellerName
+                                value = listingData.sellerName
                             )
                         }
                     }
 
                     // Description Section (if available)
-                    listing.description?.let { desc ->
+                    listingData.description?.let { desc ->
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(

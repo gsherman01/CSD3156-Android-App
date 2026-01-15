@@ -9,9 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.tinycell.data.local.AppDatabase
+import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.ui.components.ListingCard
 
 /**
@@ -38,8 +43,22 @@ import com.example.tinycell.ui.components.ListingCard
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
-    // ViewModel provides StateFlow of listings
-    val viewModel: HomeViewModel = viewModel()
+    // Get application context to initialize database
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Create ViewModel with database dependencies
+    // TODO: Replace with proper DI (Hilt/Koin) in production
+    val viewModel: HomeViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                val database = com.example.tinycell.data.local.AppDatabase.getDatabase(context)
+                val repository = com.example.tinycell.data.repository.ListingRepository(database.listingDao())
+                @Suppress("UNCHECKED_CAST")
+                return HomeViewModel(repository) as T
+            }
+        }
+    )
+
     val listings by viewModel.listings.collectAsState(initial = emptyList())
 
     Scaffold(

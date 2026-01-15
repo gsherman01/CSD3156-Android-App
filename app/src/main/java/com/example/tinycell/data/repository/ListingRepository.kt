@@ -1,127 +1,138 @@
 package com.example.tinycell.data.repository
 
+import com.example.tinycell.data.local.dao.ListingDao
+import com.example.tinycell.data.local.entity.ListingEntity
 import com.example.tinycell.data.model.Listing
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * LISTING REPOSITORY
  *
- * Current: In-memory mock data for development/testing
- * Future: Replace with Room Database + Retrofit API calls
+ * Repository pattern implementation for marketplace listings.
+ * Handles data operations using Room database for local persistence.
  *
- * Migration path:
- * 1. Add Room entities and DAOs for offline caching
- * 2. Add Retrofit API service for remote data
- * 3. Implement repository pattern: API -> Cache -> UI
- * 4. Add StateFlow for reactive updates
+ * Current: Room database for local storage
+ * Future: Add Retrofit API for remote sync (coordinate with Member 4 - Networking)
  */
-class ListingRepository {
+class ListingRepository(private val listingDao: ListingDao) {
 
     /**
-     * Get all marketplace listings.
-     *
-     * Future implementation:
-     * - Fetch from remote API (Retrofit)
-     * - Cache in local database (Room)
-     * - Return Flow<List<Listing>> for reactive updates
-     * - Add pagination support
-     * - Add filtering/sorting parameters
+     * Get all marketplace listings as reactive Flow.
+     * UI can observe this to automatically update when data changes.
      */
-    fun getListings(): List<Listing> {
-        return listOf(
-            Listing(
-                id = "1",
-                title = "iPhone 13 Pro - 256GB (Like New)",
-                price = 799.99,
-                category = "Electronics",
-                sellerName = "Alice",
-                description = "Excellent condition iPhone 13 Pro in Sierra Blue. " +
-                        "256GB storage, battery health at 95%. " +
-                        "Includes original box, charger, and case. " +
-                        "Screen protector applied since day one. No scratches or dents. " +
-                        "Selling because I upgraded to iPhone 15.",
-                imageUrl = null  // Placeholder for future image URL
-            ),
-            Listing(
-                id = "2",
-                title = "Ergonomic Gaming Chair - RGB Lighting",
-                price = 149.50,
-                category = "Furniture",
-                sellerName = "Bob",
-                description = "High-quality gaming chair with lumbar support and adjustable armrests. " +
-                        "Features RGB lighting (can be turned off). " +
-                        "Used for 6 months, in great condition. " +
-                        "Maximum weight capacity: 150kg. " +
-                        "Perfect for long gaming or work sessions. " +
-                        "Pickup only - located near downtown.",
-                imageUrl = null
-            ),
-            Listing(
-                id = "3",
-                title = "Computer Science Textbooks Bundle",
-                price = 45.00,
-                category = "Books",
-                sellerName = "Charlie",
-                description = "Bundle of 3 CS textbooks from university courses:\n" +
-                        "• Introduction to Algorithms (3rd Edition)\n" +
-                        "• Clean Code by Robert Martin\n" +
-                        "• Design Patterns: Elements of Reusable Object-Oriented Software\n\n" +
-                        "All in good condition with minimal highlighting. " +
-                        "Great for students or self-learners. " +
-                        "Will sell separately if needed.",
-                imageUrl = null
-            ),
-            Listing(
-                id = "4",
-                title = "Mechanical Keyboard - Cherry MX Blue",
-                price = 89.99,
-                category = "Electronics",
-                sellerName = "David",
-                description = "Custom mechanical keyboard with Cherry MX Blue switches. " +
-                        "RGB backlight with multiple modes. " +
-                        "Used for 1 year, fully functional. " +
-                        "Keycaps have slight shine but no functional issues. " +
-                        "Great for typing and gaming.",
-                imageUrl = null
-            ),
-            Listing(
-                id = "5",
-                title = "Vintage Leather Jacket - Size M",
-                price = 65.00,
-                category = "Fashion",
-                sellerName = "Emma",
-                description = "Genuine leather jacket from the 90s. " +
-                        "Classic style, size Medium (fits like modern Small). " +
-                        "Well-maintained, leather is soft and supple. " +
-                        "Minor wear on elbows adds to the vintage aesthetic. " +
-                        "Perfect for cool weather or motorcycle riding.",
-                imageUrl = null
-            ),
-            Listing(
-                id = "6",
-                title = "Standing Desk Converter - Bamboo",
-                price = 120.00,
-                category = "Furniture",
-                sellerName = "Frank",
-                description = "Eco-friendly bamboo standing desk converter. " +
-                        "Adjustable height mechanism works smoothly. " +
-                        "Fits monitors up to 32 inches. " +
-                        "Used for 3 months in home office setup. " +
-                        "Great for improving posture and reducing back pain. " +
-                        "Dimensions: 80cm x 40cm.",
-                imageUrl = null
-            )
-        )
-    }
+    val allListings: Flow<List<Listing>> = listingDao.getAllListings()
+        .map { entities -> entities.map { it.toListing() } }
+
+    /**
+     * Get active (unsold) listings only.
+     */
+    val activeListings: Flow<List<Listing>> = listingDao.getActiveListings()
+        .map { entities -> entities.map { it.toListing() } }
 
     /**
      * Get a single listing by ID.
-     *
-     * Future implementation:
-     * - Query from local Room database first
-     * - Fetch from API if not cached
-     * - Return Flow<Listing?> for reactive updates
      */
-    fun getListingById(id: String): Listing? {
-        return getListings().find { it.id == id }
+    suspend fun getListingById(id: String): Listing? {
+        return listingDao.getListingById(id)?.toListing()
     }
+
+    /**
+     * Get listings filtered by category.
+     */
+    fun getListingsByCategory(categoryId: String): Flow<List<Listing>> {
+        return listingDao.getListingsByCategory(categoryId)
+            .map { entities -> entities.map { it.toListing() } }
+    }
+
+    /**
+     * Get listings created by a specific user.
+     */
+    fun getListingsByUser(userId: String): Flow<List<Listing>> {
+        return listingDao.getListingsByUser(userId)
+            .map { entities -> entities.map { it.toListing() } }
+    }
+
+    /**
+     * Search listings by title or description.
+     */
+    fun searchListings(query: String): Flow<List<Listing>> {
+        return listingDao.searchListings(query)
+            .map { entities -> entities.map { it.toListing() } }
+    }
+
+    /**
+     * Insert a new listing into the database.
+     */
+    suspend fun insertListing(listing: Listing) {
+        listingDao.insert(listing.toEntity())
+    }
+
+    /**
+     * Insert multiple listings (for seeding/bulk operations).
+     */
+    suspend fun insertListings(listings: List<Listing>) {
+        listingDao.insertAll(listings.map { it.toEntity() })
+    }
+
+    /**
+     * Update an existing listing.
+     */
+    suspend fun updateListing(listing: Listing) {
+        listingDao.update(listing.toEntity())
+    }
+
+    /**
+     * Mark a listing as sold.
+     */
+    suspend fun markListingAsSold(listingId: String) {
+        listingDao.markAsSold(listingId)
+    }
+
+    /**
+     * Delete a listing.
+     */
+    suspend fun deleteListing(listing: Listing) {
+        listingDao.delete(listing.toEntity())
+    }
+
+    /**
+     * Get count of listings by user.
+     */
+    suspend fun getListingCountByUser(userId: String): Int {
+        return listingDao.getListingCountByUser(userId)
+    }
+}
+
+/**
+ * Extension function: Convert ListingEntity (database) to Listing (UI model).
+ */
+private fun ListingEntity.toListing(): Listing {
+    return Listing(
+        id = id,
+        title = title,
+        price = price,
+        category = categoryId,  // TODO: Convert categoryId to category name (coordinate with Category repository)
+        sellerName = userId,    // TODO: Convert userId to seller name (coordinate with User repository)
+        description = description,
+        imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() }  // Get first image URL
+    )
+}
+
+/**
+ * Extension function: Convert Listing (UI model) to ListingEntity (database).
+ */
+private fun Listing.toEntity(): ListingEntity {
+    return ListingEntity(
+        id = id,
+        title = title,
+        description = description ?: "",
+        price = price,
+        userId = "user_1",  // TODO: Get from authentication system when implemented
+        categoryId = category,  // Assuming category is the ID for now
+        location = null,  // TODO: Add location field to Listing model when location feature is implemented
+        imageUrls = imageUrl ?: "",  // Single image URL for now
+        createdAt = System.currentTimeMillis(),
+        isSold = false
+    )
 }
