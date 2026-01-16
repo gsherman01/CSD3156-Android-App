@@ -6,7 +6,13 @@ import com.example.tinycell.data.model.Listing
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+//lol why the difference
+//import com.example.tinycell.data.local.dao.AppDao
+//import com.example.tinycell.data.local.entity.AppEntity // Assuming ListingEntity is scaffolded similarly
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 /**
+ * // Week1
  * LISTING REPOSITORY
  *
  * Repository pattern implementation for marketplace listings.
@@ -14,6 +20,13 @@ import kotlinx.coroutines.flow.map
  *
  * Current: Room database for local storage
  * Future: Add Retrofit API for remote sync (coordinate with Member 4 - Networking)
+ */
+/**
+ * //  Week2 Friday
+ * TODO: Camera Integrator Hook
+ * - [IMAGE_URI]: Use the URI provided by the CameraX implementation here.
+ * - [FILE_SYSTEM]: Implement logic to copy the temporary camera file to the app's internal storage
+ *   to ensure the image persists after the cache is cleared.
  */
 class ListingRepository(private val listingDao: ListingDao) {
 
@@ -102,7 +115,25 @@ class ListingRepository(private val listingDao: ListingDao) {
     suspend fun getListingCountByUser(userId: String): Int {
         return listingDao.getListingCountByUser(userId)
     }
-}
+
+
+    /**
+     * Logic for the new Create Listing Feature
+     * One Responsibility: Saving a new listing with image paths
+     */
+    suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>) = withContext(Dispatchers.IO) {
+        val newListing = Listing(
+            id = java.util.UUID.randomUUID().toString(),
+            title = title,
+            price = price,
+            category = category,
+            sellerName = "user_1", // TODO: Link to actual UserEntity/Auth
+            description = description,
+            imageUrl = imagePaths.joinToString(",") // Store multiple paths as CSV
+        )
+        listingDao.insert(newListing.toEntity())
+    }
+}// end of  class
 
 /**
  * Extension function: Convert ListingEntity (database) to Listing (UI model).
@@ -116,6 +147,7 @@ private fun ListingEntity.toListing(): Listing {
         sellerName = userId,    // TODO: Convert userId to seller name (coordinate with User repository)
         description = description,
         imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() }  // Get first image URL
+        // imageUrl = imageUrls //suggested change as you want an image carousel eventually(?)
     )
 }
 
@@ -131,7 +163,9 @@ private fun Listing.toEntity(): ListingEntity {
         userId = "user_1",  // TODO: Get from authentication system when implemented
         categoryId = category,  // Assuming category is the ID for now
         location = null,  // TODO: Add location field to Listing model when location feature is implemented
-        imageUrls = imageUrl ?: "",  // Single image URL for now
+        // If the UI model only has one image, we save it;
+        // the createNewListing function handles joining multiple paths.
+        imageUrls = imageUrl ?: "",
         createdAt = System.currentTimeMillis(),
         isSold = false
     )
