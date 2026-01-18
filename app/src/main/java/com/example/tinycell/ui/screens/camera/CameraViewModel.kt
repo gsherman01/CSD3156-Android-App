@@ -1,5 +1,7 @@
 package com.example.tinycell.ui.screens.camera
 
+import android.net.Uri
+import androidx.camera.core.ImageCapture
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -30,6 +32,10 @@ class CameraViewModel(private val cameraRepository: CameraRepository) : ViewMode
     private val _hasCameraPermission = MutableStateFlow(false)
     val hasCameraPermission: StateFlow<Boolean> = _hasCameraPermission.asStateFlow()
 
+    // Internal state for captured image URI
+    private val _capturedImageUri = MutableStateFlow<Uri?>(null)
+    val capturedImageUri: StateFlow<Uri?> = _capturedImageUri.asStateFlow()
+
     fun onPermissionResult(isGranted: Boolean) {
         _hasCameraPermission.value = isGranted
         if (isGranted) {
@@ -49,6 +55,12 @@ class CameraViewModel(private val cameraRepository: CameraRepository) : ViewMode
                 _cameraProvider.value = null
                 // TODO: Log error to a specialized error state
             }
+        }
+    }
+
+    fun captureImage(imageCapture: ImageCapture) {
+        viewModelScope.launch {
+            cameraRepository.takePhoto(imageCapture).collect { uri -> _capturedImageUri.value = uri }
         }
     }
 }

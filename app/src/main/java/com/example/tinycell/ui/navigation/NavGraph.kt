@@ -8,6 +8,8 @@ import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.ui.screens.create.CreateListingScreen
 import com.example.tinycell.ui.screens.detail.ListingDetailScreen
 import com.example.tinycell.ui.screens.home.HomeScreen
+import com.example.tinycell.ui.screens.profile.ProfileScreen
+import com.example.tinycell.ui.screens.camera.CameraScreen
 
 @Composable
 fun TinyCellNavHost(
@@ -54,6 +56,9 @@ fun TinyCellNavHost(
                     navController.popBackStack()
                 }
             )
+        }
+        composable("camera"){
+            CameraScreen()
         }
     }
 }
