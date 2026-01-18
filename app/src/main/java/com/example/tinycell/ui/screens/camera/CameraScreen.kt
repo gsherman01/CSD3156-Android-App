@@ -1,6 +1,10 @@
 package com.example.tinycell.ui.screens.camera
 
 import android.content.res.Configuration
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,6 +13,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,8 +30,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusModifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -42,6 +53,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.example.tinycell.data.repository.CameraRepository
 import com.google.common.util.concurrent.ListenableFuture
@@ -53,7 +65,7 @@ import com.google.common.util.concurrent.ListenableFuture
  * 3. [CONTROLS]: Add a FloatingActionButton to trigger the 'takePhoto' action.
  */
 @Composable
-fun CameraScreen() {
+fun CameraScreen(navController: NavController) {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
@@ -87,15 +99,27 @@ fun CameraScreen() {
             val imageCapture = remember { ImageCapture.Builder().build() }
             // Perform Camera Lifecycle binding
             LaunchedEffect(Unit) {
+                viewModel.startCaptureSession()
                 val cameraProvider = viewModel.cameraProvider.value
                 preview.setSurfaceProvider(previewView.surfaceProvider)
                 cameraProvider?.unbindAll()
                 cameraProvider?.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
             }
+            DisposableEffect(Unit) {
+                onDispose {
+                    val cameraProvider = viewModel.cameraProvider.value
+                    cameraProvider?.unbindAll()
+                }
+            }
+
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 AndroidView(factory = {previewView}, modifier = Modifier.fillMaxSize())
                 FloatingActionButton(
-                    onClick = {viewModel.captureImage(imageCapture)},
+                    onClick = {
+                        viewModel.captureImage(imageCapture) {
+                            // TODO: remove this. this is just a placeholder to test if uri retrieval persist after state change
+                            navController.navigate("test-camera-uri")
+                        } },
                     shape = CircleShape,
                     modifier = Modifier
                         .align(if (orientation == Configuration.ORIENTATION_PORTRAIT) Alignment.BottomCenter else Alignment.CenterEnd)
@@ -119,6 +143,61 @@ fun CameraScreen() {
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = { permissionLauncher.launch(android.Manifest.permission.CAMERA) }) {
                 Text("Grant Permission")
+            }
+        }
+    }
+}
+
+// test uri retrieval
+@Composable
+fun TestCameraUriScreen(navController: NavController) {
+    val context = LocalContext.current
+
+    // Using the factory to provide the ViewModel with its dependency
+    val factory = CameraViewModelFactory(context)
+    val viewModel: CameraViewModel = viewModel(factory = factory)
+
+    val imageUri = viewModel.lastCapturedImageUri.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Uri Image Preview") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()){
+            imageUri?.value?.let { uri ->
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source)
+                } else {
+                    @Suppress("DEPRECATION") MediaStore.Images.Media.getBitmap(
+                        context.contentResolver,
+                        uri
+                    )
+                }
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Selected image",
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            FloatingActionButton(
+                onClick = {
+                    navController.navigate("camera")
+                },
+                shape = CircleShape,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(48.dp)
+                    .size(80.dp)
+            ) {
+                Icon(Icons.Default.Camera, contentDescription = "Capture", modifier = Modifier.fillMaxSize(0.5f))
             }
         }
     }

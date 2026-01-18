@@ -10,6 +10,7 @@ import com.example.tinycell.ui.screens.detail.ListingDetailScreen
 import com.example.tinycell.ui.screens.home.HomeScreen
 import com.example.tinycell.ui.screens.profile.ProfileScreen
 import com.example.tinycell.ui.screens.camera.CameraScreen
+import com.example.tinycell.ui.screens.camera.TestCameraUriScreen
 
 @Composable
 fun NavGraph() {
@@ -32,7 +33,12 @@ fun NavGraph() {
             ProfileScreen()
         }
         composable("camera"){
-            CameraScreen()
+            CameraScreen(navController)
+        }
+        // TODO: remove this composable when integrating, see ln 120
+        // previews captured uri from camera screen. can reference this
+        composable("test-camera-uri") {
+            TestCameraUriScreen(navController)
         }
     }
 }
