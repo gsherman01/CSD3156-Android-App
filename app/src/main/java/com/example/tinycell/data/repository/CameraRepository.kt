@@ -13,6 +13,9 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.ui.text.intl.Locale
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import java.io.File
 import kotlin.coroutines.resume
@@ -27,7 +30,8 @@ import kotlin.coroutines.suspendCoroutine
  * 4. [PREVIEW]: Provide a SurfaceProvider to the UI for the CameraPreview Composable.
  */
 class CameraRepository(private val context: Context) {
-
+    private val _lastCapturedImageUri = MutableStateFlow<Uri?>(null)
+    val lastCapturedImageUri: StateFlow<Uri?> = _lastCapturedImageUri.asStateFlow()
     suspend fun getCameraProvider(): ProcessCameraProvider = suspendCoroutine { continuation ->
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -42,7 +46,7 @@ class CameraRepository(private val context: Context) {
     }
 
     // TODO: Implement capture and analysis methods once UI is scaffolded
-    fun takePhoto(imageCapture: ImageCapture) = callbackFlow<Uri> {
+    fun takePhoto(imageCapture: ImageCapture, onSuccess: () -> Unit) = callbackFlow<Uri> {
         // use date for now, maybe listing id or something in the future so that it theres no conflicts on the server content provider side
         val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.current.platformLocale).format(System.currentTimeMillis())
         val contentValues = ContentValues().apply {
@@ -61,7 +65,11 @@ class CameraRepository(private val context: Context) {
             ContextCompat.getMainExecutor(context),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    output.savedUri?.let { uri -> trySend(uri) } ?: close(ImageCaptureException( ImageCapture.ERROR_UNKNOWN, "No URI returned", null ))
+                    output.savedUri?.let {
+                        uri -> trySend(uri)
+                        _lastCapturedImageUri.value = uri
+                        onSuccess()
+                    } ?: close(ImageCaptureException( ImageCapture.ERROR_UNKNOWN, "No URI returned", null ))
                 }
                 override fun onError(exception: ImageCaptureException) {
                     close(exception)
@@ -69,6 +77,10 @@ class CameraRepository(private val context: Context) {
             }
         )
         awaitClose{ }
+    }
+
+    fun clearLastCapturedImageUri() {
+        _lastCapturedImageUri.value = null
     }
 }
 

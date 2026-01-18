@@ -32,9 +32,21 @@ class CameraViewModel(private val cameraRepository: CameraRepository) : ViewMode
     private val _hasCameraPermission = MutableStateFlow(false)
     val hasCameraPermission: StateFlow<Boolean> = _hasCameraPermission.asStateFlow()
 
-    // Internal state for captured image URI
-    private val _capturedImageUri = MutableStateFlow<Uri?>(null)
-    val capturedImageUri: StateFlow<Uri?> = _capturedImageUri.asStateFlow()
+    // Internal state for current session captured image URI
+    private val _currentSessionCapturedImageUri = MutableStateFlow<Uri?>(null)
+    val currentSessionCapturedImageUri: StateFlow<Uri?> = _currentSessionCapturedImageUri.asStateFlow()
+
+    // Internal state for last session captured image URI
+    private val _lastCapturedImageUri = MutableStateFlow<Uri?>(null)
+    val lastCapturedImageUri: StateFlow<Uri?> = _lastCapturedImageUri.asStateFlow()
+
+    // Internal state for camera capture session (capture mode)
+    private val _isCaptureSession = MutableStateFlow(false)
+    val isCaptureSession: StateFlow<Boolean> = _isCaptureSession.asStateFlow()
+
+    init{
+        _lastCapturedImageUri.value = cameraRepository.lastCapturedImageUri.value
+    }
 
     fun onPermissionResult(isGranted: Boolean) {
         _hasCameraPermission.value = isGranted
@@ -58,9 +70,23 @@ class CameraViewModel(private val cameraRepository: CameraRepository) : ViewMode
         }
     }
 
-    fun captureImage(imageCapture: ImageCapture) {
+    fun captureImage(imageCapture: ImageCapture, onImageCaptured: () -> Unit) {
         viewModelScope.launch {
-            cameraRepository.takePhoto(imageCapture).collect { uri -> _capturedImageUri.value = uri }
+            if (_isCaptureSession.value) {
+                cameraRepository.takePhoto(imageCapture, onImageCaptured)
+                    .collect { uri -> _currentSessionCapturedImageUri.value = uri }
+            }
+            else{
+                throw IllegalStateException("attempted to capture, when capture session is not set!")
+            }
+        }
+    }
+
+    // do not call this if you are not trying to take a photo. if you are trying to access photos taken in a previous session use lastCapturedUri instead
+    fun startCaptureSession(){
+        if (!_isCaptureSession.value) {
+            _isCaptureSession.value = true
+            cameraRepository.clearLastCapturedImageUri()
         }
     }
 }
