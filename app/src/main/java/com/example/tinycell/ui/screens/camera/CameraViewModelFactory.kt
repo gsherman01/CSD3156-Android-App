@@ -3,6 +3,7 @@ package com.example.tinycell.ui.screens.camera
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.tinycell.MarketplaceApp
 import com.example.tinycell.data.repository.CameraRepository
 
 /**
@@ -16,8 +17,9 @@ class CameraViewModelFactory(
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        val cameraRepository = (context.applicationContext as MarketplaceApp).cameraRepository
         if (modelClass.isAssignableFrom(CameraViewModel::class.java)) {
-            return CameraViewModel(CameraRepository(context)) as T
+            return CameraViewModel(cameraRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
