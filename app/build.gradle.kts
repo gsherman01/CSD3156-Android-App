@@ -5,7 +5,13 @@ plugins {
     id("com.google.devtools.ksp")
     // REQUIRED for modern Compose (Kotlin 1.9.24+) oop ,  now get abolish
     //id("org.jetbrains.kotlin.plugin.compose")
-}
+
+
+    // for firestore/firebase
+    // Add the Google services Gradle plugin
+    id("com.google.gms.google-services")
+
+    }
 
 android {
     namespace = "com.example.tinycell"
@@ -103,6 +109,19 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
     implementation("androidx.camera:camera-extensions:$cameraxVersion")
+
+
+    // FireBase/Server things
+    // Import the Firebase BoM
+    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+    //chatgpt suggests this
+     implementation("com.google.firebase:firebase-firestore-ktx:25.1.1")
+
+    // TODO: Add the dependencies for Firebase products you want to use
+    // When using the BoM, don't specify versions in Firebase dependencies
+    implementation("com.google.firebase:firebase-analytics")
+    // Add the dependencies for any other desired Firebase products
+    // https://firebase.google.com/docs/android/setup#available-libraries
 
 }
 
