@@ -9,6 +9,7 @@ import com.example.tinycell.ui.screens.create.CreateListingScreen
 import com.example.tinycell.ui.screens.detail.ListingDetailScreen
 import com.example.tinycell.ui.screens.home.HomeScreen
 import com.example.tinycell.ui.screens.profile.ProfileScreen
+import com.example.tinycell.ui.screens.camera.CameraScreen
 
 @Composable
 fun NavGraph() {
@@ -29,6 +30,9 @@ fun NavGraph() {
         }
         composable("profile") {
             ProfileScreen()
+        }
+        composable("camera"){
+            CameraScreen()
         }
     }
 }

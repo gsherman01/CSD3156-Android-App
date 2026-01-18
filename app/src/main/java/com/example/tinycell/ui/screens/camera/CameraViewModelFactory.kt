@@ -1,5 +1,6 @@
 package com.example.tinycell.ui.screens.camera
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.tinycell.data.repository.CameraRepository
@@ -10,13 +11,13 @@ import com.example.tinycell.data.repository.CameraRepository
  * 2. [REPOSITORY_SHARING]: Ensure the same instance of CameraRepository is used if multiple screens require camera access.
  */
 class CameraViewModelFactory(
-    private val cameraRepository: CameraRepository
+    private val context: Context
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CameraViewModel::class.java)) {
-            return CameraViewModel(cameraRepository) as T
+            return CameraViewModel(CameraRepository(context)) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
