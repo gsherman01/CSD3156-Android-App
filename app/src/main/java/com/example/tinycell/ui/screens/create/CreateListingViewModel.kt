@@ -44,7 +44,10 @@ class CreateListingViewModel(private val repository: ListingRepository) : ViewMo
     }
 
     fun onCategoryChange(value: String) {
-        _uiState.value = _uiState.value.copy(category = value)
+        // Validate that the selection is part of the fixed choices
+        if (_uiState.value.availableCategories.contains(value)) {
+            _uiState.value = _uiState.value.copy(category = value)
+        }
     }
 
 
@@ -127,7 +130,9 @@ class CreateListingViewModel(private val repository: ListingRepository) : ViewMo
             }
         }
     }// end of submit function
-}// end of function
+
+
+}// end of CreateListingViewModel class
 
 
 
@@ -148,11 +153,22 @@ data class CreateListingUiState(
     val title: String = "",
     val price: String = "",
     val description: String = "",
+    // LoL the hard coded part is tuck under here.
     val category: String = "General",
+    // Added fixed choices to prevent SQLite Error 787 (Foreign Key violation)
+    val availableCategories: List<String> = listOf(
+        "General",
+        "Electronics",
+        "Fashion",
+        "Home",
+        "Toys",
+        "Books"
+    ),
+
     val imagePaths: List<String> = emptyList(),
     val isSuccess: Boolean = false,
     val errorMessage: String? = null
-)
+)// end of dataclass
 
 
 /* VERY SUPER OLD ..

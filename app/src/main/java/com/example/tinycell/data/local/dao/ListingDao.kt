@@ -9,6 +9,10 @@ import androidx.room.Update
 import com.example.tinycell.data.local.entity.ListingEntity
 import kotlinx.coroutines.flow.Flow
 
+// incomplete part for CreateListing. This is known as foregin keys
+import com.example.tinycell.data.local.entity.CategoryEntity
+import com.example.tinycell.data.local.entity.UserEntity
+
 /**
  * Data Access Object for Listing table.
  *
@@ -116,4 +120,19 @@ interface ListingDao {
      */
     @Query("SELECT COUNT(*) FROM listings WHERE userId = :userId")
     suspend fun getListingCountByUser(userId: String): Int
+
+    /**
+     * [TODO_DATABASE_INTEGRATION]:
+     * These methods are required for database seeding to prevent Error 787.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertUser(user: UserEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertCategory(category: CategoryEntity)
+
+    @Query("SELECT * FROM categories")
+    suspend fun getAllCategories(): List<CategoryEntity>
+
+
 }

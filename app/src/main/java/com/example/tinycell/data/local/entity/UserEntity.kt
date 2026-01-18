@@ -21,4 +21,5 @@ data class UserEntity(
     val profilePicUrl: String? = null,
 
     val createdAt: Long
+
 )

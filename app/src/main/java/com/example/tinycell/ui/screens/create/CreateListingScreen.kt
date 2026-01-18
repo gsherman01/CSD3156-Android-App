@@ -32,6 +32,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.MaterialTheme
 
+// for a dropdown menu for category
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+
 /**
  * [TODO_CAMERA_INTEGRATION]:
  * - ACTION: Camera lead to implement a button/icon that navigates to the Camera screen
@@ -54,6 +59,10 @@ fun CreateListingScreen(
     val factory = CreateListingViewModelFactory(repository)
     val viewModel: CreateListingViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
+
+    // FIX: Define the missing 'expanded' state for the dropdown menu
+    var expanded by remember { mutableStateOf(false) }
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     /*
     // to enable this scroll behaviour
@@ -153,6 +162,41 @@ fun CreateListingScreen(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = uiState.category,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Category") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    uiState.availableCategories.forEach { selectionOption ->
+                        DropdownMenuItem(
+                            text = { Text(selectionOption) },
+                            onClick = {
+                                viewModel.onCategoryChange(selectionOption)
+                                expanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }// end of dropdown menu
 
             Spacer(modifier = Modifier.height(24.dp))
 

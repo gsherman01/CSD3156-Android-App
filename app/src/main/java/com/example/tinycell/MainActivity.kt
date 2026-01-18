@@ -35,6 +35,11 @@ class MainActivity : ComponentActivity() {
         // Initialize the container with the application context
         appContainer = AppContainer(applicationContext)
 
+        // Seed database with required Foreign Key parents
+        // of users' account and categories
+        appContainer.seedDatabase()
+
+
         setContent {
             TinyCellTheme {
                 val navController = rememberNavController()

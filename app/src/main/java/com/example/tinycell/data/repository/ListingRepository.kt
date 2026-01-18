@@ -121,18 +121,43 @@ class ListingRepository(private val listingDao: ListingDao) {
      * Logic for the new Create Listing Feature
      * One Responsibility: Saving a new listing with image paths
      */
-    suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>) = withContext(Dispatchers.IO) {
+    /**
+     * [TODO_DATABASE_INTEGRATION]:
+     * - PROBLEM: SQLite Error 787 (Foreign Key Constraint).
+     * - ACTION: Ensure 'userId' and 'categoryId' exist in their respective tables
+     *   before calling listingDao.insert().
+     * - FIX: Implement a check here or seed the database with default values
+     *   (e.g., a default user and a "General" category).
+     */
+    suspend fun createNewListing(
+        title: String,
+        price: Double,
+        description: String,
+        category: String,
+        imagePaths: List<String>
+    ) = withContext(Dispatchers.IO) {
+        // [TODO_DATABASE_INTEGRATION]:
+        // To resolve Error 787, ensure these IDs are seeded in AppDatabase
+        val sellerId = "user_1"; // assiocated to a user account.
+        val catId = category.ifBlank { "General" }
+
         val newListing = Listing(
             id = java.util.UUID.randomUUID().toString(),
             title = title,
             price = price,
-            category = category,
-            sellerName = "user_1", // TODO: Link to actual UserEntity/Auth
+            category = catId,
+            sellerName = sellerId,
             description = description,
-            imageUrl = imagePaths.joinToString(",") // Store multiple paths as CSV
+            imageUrl = imagePaths.joinToString(",")
         )
-        listingDao.insert(newListing.toEntity())
-    }
+
+        try {
+            listingDao.insert(newListing.toEntity())
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
+            // [TODO_ERROR_HANDLING]: Log this specifically as a Foreign Key violation
+            throw Exception("Foreign Key Violation: Ensure User '$sellerId' and Category '$catId' exist.")
+        }
+    }//end  of function
 }// end of  class
 
 /**
