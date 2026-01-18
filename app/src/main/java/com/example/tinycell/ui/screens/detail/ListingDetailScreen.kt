@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -47,18 +50,36 @@ import com.example.tinycell.ui.components.PriceTag
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListingDetailScreen(listingId: String) {
+fun ListingDetailScreen(
+    //listingId: String
+    listingId: String,
+    repository: ListingRepository, // Injected via NavHost
+    onNavigateBack: () -> Unit      // Required for the TopAppBar
+
+) {
+    /*
     // Get application context to initialize database
     val context = LocalContext.current
 
     // Create ViewModel with database dependencies
     // TODO: Replace with proper DI (Hilt/Koin) in production
+    //! no longers handle the lifetime of database and repo.
     val viewModel: ListingDetailViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val database = AppDatabase.getDatabase(context)
                 val repository = ListingRepository(database.listingDao())
                 @Suppress("UNCHECKED_CAST")
+                return ListingDetailViewModel(repository, listingId) as T
+            }
+        }
+    )
+    */
+    // Initialize ViewModel using the provided repository
+    val viewModel: ListingDetailViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return ListingDetailViewModel(repository, listingId) as T
             }
         }
@@ -85,6 +106,14 @@ fun ListingDetailScreen(listingId: String) {
             topBar = {
                 TopAppBar(
                     title = { Text("Listing Details") },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer

@@ -19,6 +19,13 @@ import com.example.tinycell.data.local.AppDatabase
 import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.ui.components.ListingCard
 
+//for FloatingActionButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+
 /**
  * HOME SCREEN - MARKETPLACE BROWSING
  *
@@ -40,6 +47,76 @@ import com.example.tinycell.ui.components.ListingCard
  * - Category filters
  * - Loading/error states
  */
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    onNavigateToDetail: (String) -> Unit,
+    onNavigateToCreate: () -> Unit,
+    listingRepository: ListingRepository
+) {
+    // 1. Initialize ViewModel with Repository Factory
+    val viewModel: HomeViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return HomeViewModel(listingRepository) as T
+            }
+        }
+    )
+
+    // 2. Collect StateFlow from ViewModel
+    val listings by viewModel.listings.collectAsState(initial = emptyList())
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("TinySell") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToCreate,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Create New Listing"
+                )
+            }
+        }
+    ) { paddingValues ->
+        // 3. Display Listings
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 16.dp)
+        ) {
+            items(
+                items = listings,
+                key = { listing -> listing.id }
+            ) { listing ->
+                ListingCard(
+                    listing = listing,
+                    onClick = { onNavigateToDetail(listing.id) }
+                )
+            }
+        }
+    }
+}//end of function
+
+
+/*
+old
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
@@ -99,3 +176,4 @@ fun HomeScreen(navController: NavController) {
         }
     }
 }
+*/
