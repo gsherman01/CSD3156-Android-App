@@ -75,7 +75,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.navigation:navigation-compose:2.8.3")
-    implementation(libs.androidx.material3)
+    //implementation(libs.androidx.material3)
 
     // Room Database
     // Version 2.6.1 is required for Java 17 compatibility
@@ -112,18 +112,31 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraxVersion")
     implementation("androidx.camera:camera-extensions:$cameraxVersion")
 
+    // REQUIRED: Guava (ListenableFuture)
+    /*
+    ProcessCameraProvider.getInstance(context) returns a Guava ListenableFuture
+Your module does NOT have Guava (or the CameraX lifecycle artifact that bundles it) on the classpath
+     */
+    implementation("com.google.guava:guava:31.1-android")
+
 
     // FireBase/Server things
-    // Import the Firebase BoM
-    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
-    //chatgpt suggests this
-     implementation("com.google.firebase:firebase-firestore-ktx:25.1.1")
+    // 1. Import the Firebase BoM (Bill of Materials)
+    //implementation(platform("com.google.firebase:firebase-bom:33.8.0"))
+    // to make it more stable with kotlin 1.9.24
+    implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
 
-    // TODO: Add the dependencies for Firebase products you want to use
-    // When using the BoM, don't specify versions in Firebase dependencies
-    implementation("com.google.firebase:firebase-analytics")
-    // Add the dependencies for any other desired Firebase products
-    // https://firebase.google.com/docs/android/setup#available-libraries
+    implementation("com.google.firebase:firebase-firestore-ktx")
 
+    //  this is a kotlin 2.1.0 feature
+    // 2. Add Firebase Analytics (No version needed, managed by BoM)
+    //implementation("com.google.firebase:firebase-analytics")
+    // 3. Add Cloud Firestore (No version needed, managed by BoM)
+    // Note: Use the modern artifact without the -ktx suffix as it's included by default
+    //implementation("com.google.firebase:firebase-firestore")
+
+    // TODO: [NETWORKING_INTEGRATION]
+    // ACTION: Networking lead to ensure google-services.json is placed in the 'app/' directory.
+    // ACTION: Verify that id("com.google.gms.google-services") is applied in the PROJECT-level build.gradle.kts.
 }
 

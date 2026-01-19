@@ -11,8 +11,7 @@ plugins {
     // Match KSP to Kotlin 1.9.24
     id("com.google.devtools.ksp") version "1.9.24-1.0.20" apply false
 
-    //alias(libs.plugins.ksp) apply false //?? dont know if this is illegal
-
     // Add the dependency for the Google services Gradle plugin
-    id("com.google.gms.google-services") version "4.4.4" apply false
+    //id("com.google.gms.google-services") version "4.4.4" apply false
+    id("com.google.gms.google-services") version "4.4.2" apply false
 }

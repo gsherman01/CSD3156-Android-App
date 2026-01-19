@@ -36,7 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusModifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+//import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleOwner
@@ -55,7 +55,7 @@ import com.google.common.util.concurrent.ListenableFuture
 @Composable
 fun CameraScreen() {
     val context = LocalContext.current
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     // Using the factory to provide the ViewModel with its dependency
     val factory = CameraViewModelFactory(context)
@@ -82,20 +82,36 @@ fun CameraScreen() {
     if (hasPermission) {
         if (isReady) {
             // TODO: Teammate should implement the AndroidView/PreviewView here
-            val previewView = remember { PreviewView(context) }
-            val preview = remember { Preview.Builder().build() }
-            val imageCapture = remember { ImageCapture.Builder().build() }
-            // Perform Camera Lifecycle binding
-            LaunchedEffect(Unit) {
-                val cameraProvider = viewModel.cameraProvider.value
-                preview.setSurfaceProvider(previewView.surfaceProvider)
-                cameraProvider?.unbindAll()
-                cameraProvider?.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+            val previewView = remember {
+                PreviewView(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
             }
+            val preview = remember { Preview.Builder().build() }
+            // Issue 5: ImageCapture Should Live in ViewModel (Design)
+            // !! TODO Camera Preview View Model it is inside camera viewmodel
+            //val imageCapture = remember { ImageCapture.Builder().build() }
+            // Perform Camera Lifecycle binding
+            LaunchedEffect(isReady) {
+                val cameraProvider = viewModel.cameraProvider.value ?: return@LaunchedEffect
+
+                preview.setSurfaceProvider(previewView.surfaceProvider)
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    preview,
+                    viewModel.imageCapture
+                )
+            }
+
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 AndroidView(factory = {previewView}, modifier = Modifier.fillMaxSize())
                 FloatingActionButton(
-                    onClick = {viewModel.captureImage(imageCapture)},
+                    onClick = { viewModel.captureImage() },
                     shape = CircleShape,
                     modifier = Modifier
                         .align(if (orientation == Configuration.ORIENTATION_PORTRAIT) Alignment.BottomCenter else Alignment.CenterEnd)

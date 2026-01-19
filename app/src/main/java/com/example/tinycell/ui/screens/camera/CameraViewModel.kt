@@ -28,6 +28,14 @@ class CameraViewModel(private val cameraRepository: CameraRepository) : ViewMode
     private val _isCameraReady = MutableStateFlow(false)
     val isCameraReady: StateFlow<Boolean> = _isCameraReady.asStateFlow()
 
+    //  ImageCapture is now owned by the ViewModel
+    private val _imageCapture = ImageCapture.Builder()
+        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+        .build()
+
+    val imageCapture: ImageCapture
+        get() = _imageCapture
+
     // Internal state for permission status
     private val _hasCameraPermission = MutableStateFlow(false)
     val hasCameraPermission: StateFlow<Boolean> = _hasCameraPermission.asStateFlow()
@@ -58,9 +66,15 @@ class CameraViewModel(private val cameraRepository: CameraRepository) : ViewMode
         }
     }
 
-    fun captureImage(imageCapture: ImageCapture) {
+    /* ---------- Capture ---------- */
+
+    fun captureImage() {
         viewModelScope.launch {
-            cameraRepository.takePhoto(imageCapture).collect { uri -> _capturedImageUri.value = uri }
+            cameraRepository
+                .takePhoto(_imageCapture)
+                .collect { uri ->
+                    _capturedImageUri.value = uri
+                }
         }
     }
 }
