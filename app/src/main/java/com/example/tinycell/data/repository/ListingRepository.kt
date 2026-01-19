@@ -10,48 +10,30 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// Remote dependencies
-import com.example.tinycell.data.repository.RemoteListingRepository
-
 /**
- * [PHASE 3]: REPOSITORY SYNC STRATEGY
+ * [PHASE 3.5]: Updated ListingRepository with Image Cloud Support.
  *
- * This repository implements the Local-First pattern.
- * - Room is the Single Source of Truth for the UI.
- * - Firestore is the remote source of truth.
- *
- * [LEARNING_POINT: OFFLINE-FIRST]
- * We separate the data stream (Flow from Room) from the sync action (Suspend function).
- * This ensures the UI is always reactive and works without internet.
+ * This repository now orchestrates:
+ * 1. Image Upload (Firebase Storage)
+ * 2. Listing Metadata (Firestore)
+ * 3. Local Cache (Room)
  */
 class ListingRepository(
     private val listingDao: ListingDao,
-    private val remoteRepo: RemoteListingRepository
+    private val remoteRepo: RemoteListingRepository,
+    private val imageRepo: RemoteImageRepository // Added for Phase 3.5
 ) {
 
-    /**
-     * [TODO_SYNC_STRATEGY]: Background Sync
-     * Pulls latest listings from Firestore and saves them to Room.
-     * Room's 'OnConflictStrategy.REPLACE' prevents duplicate IDs.
-     */
     suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
         try {
-            // 1. Fetch from Firestore (via RemoteRepo interface)
             val remoteListings = remoteRepo.fetchListings()
-            
-            // 2. Map DTOs to Entities
             val entities = remoteListings.map { it.toEntity() }
-            
-            // 3. Update local database
             listingDao.insertAll(entities)
         } catch (e: Exception) {
-            // [TODO_ERROR_HANDLING]: Log sync failure (e.g., Network timeout)
+            // Log sync failure
         }
     }
 
-    /**
-     * UI Observation: Always observe Room.
-     */
     val allListings: Flow<List<Listing>> = listingDao.getAllListings()
         .map { entities -> entities.map { it.toListing() } }
 
@@ -63,19 +45,34 @@ class ListingRepository(
     }
 
     /**
-     * [LEARNING_POINT: WRITE-THROUGH CACHE]
-     * When creating a listing, we save to local Room immediately for instant UI feedback,
-     * then push to Firestore to sync with other users.
+     * [PHASE 3.5]: Uploads a listing with its images.
+     * 1. Saves metadata to local Room first (with local paths).
+     * 2. Uploads images to cloud and gets remote URLs.
+     * 3. Updates local Room and Firestore with remote URLs.
      */
     suspend fun createListing(entity: ListingEntity) {
-        // 1. Save locally first (Immediate UI feedback)
+        // [TODO_OFFLINE_READY]: In the future, we can use WorkManager 
+        // to handle the cloud upload if the network is flaky.
+        
+        // 1. Save locally first (Optimistic Update)
         listingDao.insert(entity)
 
-        // 2. Push to Firestore (Sync to Cloud)
         try {
-            remoteRepo.createListing(entity.toDto())
+            // 2. Upload images to Firebase Storage
+            val localPaths = if (entity.imageUrls.isEmpty()) emptyList() else entity.imageUrls.split(",")
+            val uploadResult = imageRepo.uploadImages(localPaths)
+            
+            val remoteUrls = uploadResult.getOrDefault(localPaths)
+            val updatedEntity = entity.copy(imageUrls = remoteUrls.joinToString(","))
+
+            // 3. Update Local Room with Remote URLs
+            listingDao.update(updatedEntity)
+
+            // 4. Push to Firestore
+            remoteRepo.uploadListing(updatedEntity.toDto())
+            
         } catch (e: Exception) {
-            // [TODO_RETRY_LOGIC]: If remote fails, mark for future sync
+            // [TODO_ERROR_HANDLING]: Mark listing as "pending_sync" if upload fails
         }
     }
 
@@ -112,6 +109,9 @@ class ListingRepository(
         listingDao.delete(listing.toEntity())
     }
 
+    /**
+     * Entry point for Creating a Listing.
+     */
     suspend fun createNewListing(
         title: String,
         price: Double,
@@ -132,13 +132,12 @@ class ListingRepository(
             imageUrl = imagePaths.joinToString(",")
         )
 
-        // Use the unified createListing logic
         createListing(newListing.toEntity())
     }
 }
 
 /**
- * Mappers remain separate to keep Repository clean.
+ * Mappers
  */
 private fun ListingEntity.toListing(): Listing {
     return Listing(

@@ -6,11 +6,14 @@ import com.example.tinycell.data.local.AppDatabase
 import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.data.repository.CameraRepository
 import com.example.tinycell.data.repository.RemoteListingRepository
+import com.example.tinycell.data.repository.RemoteImageRepository
 import com.example.tinycell.data.repository.FirestoreListingRepositoryImpl
+import com.example.tinycell.data.repository.FirebaseStorageRepositoryImpl
 import com.example.tinycell.data.remote.datasource.FirestoreListingDataSource
 import com.example.tinycell.data.remote.datasource.FirestoreUserDataSource
 import com.example.tinycell.data.remote.datasource.FirestoreChatDataSource
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 
 
 import com.example.tinycell.data.local.entity.CategoryEntity
@@ -20,13 +23,17 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 /**
- * [PHASE 3]: Dependency Injection Container.
- * Updated to handle Startup Sync for the Local-First strategy.
+ * [PHASE 3.5]: Dependency Injection Container.
+ * Updated to include Firebase Storage and Remote Image Repository.
  */
 class AppContainer(private val context: Context) {
 
     private val firestore: FirebaseFirestore by lazy {
         FirebaseFirestore.getInstance()
+    }
+
+    private val storage: FirebaseStorage by lazy {
+        FirebaseStorage.getInstance()
     }
 
     // --- DATA SOURCES ---
@@ -52,30 +59,31 @@ class AppContainer(private val context: Context) {
         FirestoreListingRepositoryImpl(firestore)
     }
 
+    val remoteImageRepository: RemoteImageRepository by lazy {
+        FirebaseStorageRepositoryImpl(context.applicationContext, storage)
+    }
+
     val listingRepository: ListingRepository by lazy {
-        ListingRepository(database.listingDao(), remoteListingRepository)
+        ListingRepository(
+            database.listingDao(),
+            remoteListingRepository,
+            remoteImageRepository // Injected for image uploads
+        )
     }
 
     val cameraRepository: CameraRepository by lazy {
         CameraRepository(context.applicationContext)
     }
 
-    /**
-     * [LEARNING_POINT: INITIALIZATION STRATEGY]
-     * We combine local seeding (for primary keys/constraints) with remote sync.
-     */
     fun initializeData() {
         @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
         GlobalScope.launch(Dispatchers.IO) {
-            // 1. Seed local data first (Required for Foreign Key integrity)
             seedDatabase()
-            
-            // 2. Sync from Firestore (Hydrate Room with real data)
             performRemoteSync()
         }
     }
 
-    private suspend fun seedDatabase() {
+    suspend fun seedDatabase() {
         try {
             val dao = database.listingDao()
             val currentTime = System.currentTimeMillis()
@@ -97,18 +105,15 @@ class AppContainer(private val context: Context) {
                 )
             }
         } catch (e: Exception) {
-            // Log seeding error
+            // Log error
         }
     }
 
-    /**
-     * [PHASE 3]: Background Remote Sync
-     */
     private suspend fun performRemoteSync() {
         try {
             listingRepository.syncFromRemote()
         } catch (e: Exception) {
-            // [TODO_ERROR_HANDLING]: Implement a notification or retry snackbar in UI
+            // Log error
         }
     }
 }

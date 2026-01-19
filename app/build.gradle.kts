@@ -131,6 +131,7 @@ Your module does NOT have Guava (or the CameraX lifecycle artifact that bundles 
     implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
 
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx") // [PHASE 3.5 ADDITION]
 
     //  this is a kotlin 2.1.0 feature
     // 2. Add Firebase Analytics (No version needed, managed by BoM)
@@ -143,4 +144,3 @@ Your module does NOT have Guava (or the CameraX lifecycle artifact that bundles 
     // ACTION: Networking lead to ensure google-services.json is placed in the 'app/' directory.
     // ACTION: Verify that id("com.google.gms.google-services") is applied in the PROJECT-level build.gradle.kts.
 }
-

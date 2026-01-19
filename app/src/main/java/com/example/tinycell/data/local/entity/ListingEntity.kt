@@ -4,13 +4,10 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.example.tinycell.data.remote.model.ListingDto
 
 /**
  * Room entity for Listing table.
- *
- * Represents a marketplace listing created by a user.
- * Foreign keys establish relationships with User and Category tables.
- * Indices on userId and categoryId improve query performance.
  */
 @Entity(
     tableName = "listings",
@@ -36,32 +33,16 @@ import androidx.room.PrimaryKey
 data class ListingEntity(
     @PrimaryKey
     val id: String,
-
     val title: String,
-
     val description: String,
-
     val price: Double,
-
     val userId: String,
-
     val categoryId: String,
-
     val location: String? = null,
-
-    /**
-     * Stores multiple image URLs as comma-separated string.
-     * Example: "url1,url2,url3"
-     * Convert to/from List<String> in repository layer.
-     */
     val imageUrls: String = "",
-
     val createdAt: Long,
-
     val isSold: Boolean = false
-
 )
-
 
 fun ListingEntity.toDto() = ListingDto(
     id = id,
@@ -71,5 +52,7 @@ fun ListingEntity.toDto() = ListingDto(
     userId = userId,
     createdAt = createdAt,
     isSold = isSold,
-    categoryId = categoryId
+    categoryId = categoryId,
+    // [FIX]: Map CSV string back to List for Firestore
+    imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(",")
 )

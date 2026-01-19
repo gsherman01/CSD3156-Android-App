@@ -19,26 +19,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var appContainer: AppContainer
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        /*
-
-        super: This refers to the parent class (ComponentActivity).
-        It tells the Android system to execute the standard setup code
-        required to initialize an Activity.
-
-        savedInstanceState: This is a Bundle object that contains
-         the activity's previously saved state
-         (e.g., if the screen was rotated).
-         If the activity is being started for the first time,this is null.
-         */
         super.onCreate(savedInstanceState)
 
-        // Initialize the container with the application context
-        appContainer = AppContainer(applicationContext)
-
-        // Seed database with required Foreign Key parents
-        // of users' account and categories
-        appContainer.seedDatabase()
-
+        // [FIX]: Access the container from MarketplaceApp to ensure single instance
+        // and that initializeData() has been triggered.
+        appContainer = (application as MarketplaceApp).container
 
         setContent {
             TinyCellTheme {
@@ -49,7 +34,6 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     // Pass the listing repository to the NavHost
-                    // create the navhost here. and passing in the repos.
                     TinyCellNavHost(
                         navController = navController,
                         listingRepository = appContainer.listingRepository

@@ -23,11 +23,10 @@ class FirestoreUserDataSource(
     }
 
     private fun UserDto.toUser(): User {
+        // [FIX]: Align with current User model which only has id and username
         return User(
             id = this.id,
-            name = this.name.ifBlank { "Anonymous" },
-            email = this.email,
-            profilePicUrl = this.profilePicUrl
+            username = this.name.ifBlank { "Anonymous" }
         )
     }
 }
