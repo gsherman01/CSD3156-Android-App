@@ -1,5 +1,6 @@
 package com.example.tinycell.data.repository
 
+import android.util.Log
 import com.example.tinycell.data.local.dao.ListingDao
 import com.example.tinycell.data.local.entity.ListingEntity
 import com.example.tinycell.data.model.Listing
@@ -10,27 +11,31 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+private const val TAG = "ListingRepository"
+
 /**
- * [PHASE 3.5]: Updated ListingRepository with Image Cloud Support.
- *
- * This repository now orchestrates:
- * 1. Image Upload (Firebase Storage)
- * 2. Listing Metadata (Firestore)
- * 3. Local Cache (Room)
+ * [PHASE 4]: Dual Write Strategy Implementation.
+ * 
+ * Orchestrates data between Local Room (Source of Truth for UI) 
+ * and Remote Firestore (Source of Truth for Cloud).
  */
 class ListingRepository(
     private val listingDao: ListingDao,
     private val remoteRepo: RemoteListingRepository,
-    private val imageRepo: RemoteImageRepository // Added for Phase 3.5
+    private val imageRepo: RemoteImageRepository
 ) {
 
+    /**
+     * [PHASE 3]: Background Remote Sync.
+     */
     suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
         try {
             val remoteListings = remoteRepo.fetchListings()
             val entities = remoteListings.map { it.toEntity() }
             listingDao.insertAll(entities)
+            Log.d(TAG, "Sync successful: ${entities.size} items updated.")
         } catch (e: Exception) {
-            // Log sync failure
+            Log.e(TAG, "Sync failed: ${e.message}")
         }
     }
 
@@ -45,34 +50,46 @@ class ListingRepository(
     }
 
     /**
-     * [PHASE 3.5]: Uploads a listing with its images.
-     * 1. Saves metadata to local Room first (with local paths).
-     * 2. Uploads images to cloud and gets remote URLs.
-     * 3. Updates local Room and Firestore with remote URLs.
+     * [PHASE 4]: DUAL WRITE STRATEGY
+     * 
+     * 1. IMMEDIATE LOCAL WRITE: Save to Room so UI updates instantly.
+     * 2. ASYNC REMOTE WRITE: Upload images and metadata to Firebase.
+     * 
+     * [LEARNING_POINT: CONSISTENCY]
+     * Room is updated twice: first with local file paths, then with remote URLs.
+     * This ensures the user can see their image even before it's uploaded.
      */
-    suspend fun createListing(entity: ListingEntity) {
-        // [TODO_OFFLINE_READY]: In the future, we can use WorkManager 
-        // to handle the cloud upload if the network is flaky.
-        
+    suspend fun createListing(entity: ListingEntity) = withContext(Dispatchers.IO) {
         // 1. Save locally first (Optimistic Update)
         listingDao.insert(entity)
+        Log.d(TAG, "Local write success: ${entity.id}")
 
         try {
-            // 2. Upload images to Firebase Storage
+            // 2. Process Images (Local Path -> Cloud URL)
             val localPaths = if (entity.imageUrls.isEmpty()) emptyList() else entity.imageUrls.split(",")
-            val uploadResult = imageRepo.uploadImages(localPaths)
             
-            val remoteUrls = uploadResult.getOrDefault(localPaths)
-            val updatedEntity = entity.copy(imageUrls = remoteUrls.joinToString(","))
+            if (localPaths.isNotEmpty()) {
+                Log.d(TAG, "Starting image upload for: ${entity.id}")
+                val uploadResult = imageRepo.uploadImages(localPaths)
+                
+                val remoteUrls = uploadResult.getOrThrow()
+                val updatedEntity = entity.copy(imageUrls = remoteUrls.joinToString(","))
 
-            // 3. Update Local Room with Remote URLs
-            listingDao.update(updatedEntity)
-
-            // 4. Push to Firestore
-            remoteRepo.uploadListing(updatedEntity.toDto())
+                // 3. Update local Room with cloud URLs
+                listingDao.update(updatedEntity)
+                
+                // 4. Push to Firestore
+                remoteRepo.uploadListing(updatedEntity.toDto()).getOrThrow()
+                Log.d(TAG, "Remote write success: ${entity.id}")
+            } else {
+                // No images, push metadata directly
+                remoteRepo.uploadListing(entity.toDto()).getOrThrow()
+            }
             
         } catch (e: Exception) {
-            // [TODO_ERROR_HANDLING]: Mark listing as "pending_sync" if upload fails
+            // [TODO_RETRY_STRATEGY]: In a real app, we would mark this entity 
+            // as "needs_sync" in Room and use WorkManager to retry later.
+            Log.e(TAG, "Remote write failed for ${entity.id}: ${e.message}")
         }
     }
 
@@ -118,7 +135,7 @@ class ListingRepository(
         description: String,
         category: String,
         imagePaths: List<String>
-    ) = withContext(Dispatchers.IO) {
+    ) {
         val sellerId = "user_1"
         val catId = category.ifBlank { "General" }
 
