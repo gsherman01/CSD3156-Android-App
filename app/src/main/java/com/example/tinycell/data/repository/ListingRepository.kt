@@ -3,153 +3,115 @@ package com.example.tinycell.data.repository
 import com.example.tinycell.data.local.dao.ListingDao
 import com.example.tinycell.data.local.entity.ListingEntity
 import com.example.tinycell.data.model.Listing
+import com.example.tinycell.data.remote.model.toEntity
+import com.example.tinycell.data.remote.model.toDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-
-//lol why the difference
-//import com.example.tinycell.data.local.dao.AppDao
-//import com.example.tinycell.data.local.entity.AppEntity // Assuming ListingEntity is scaffolded similarly
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-//for remote server side
-import com.example.tinycell.data.remote.repository.ListingRemoteRepository
+// Remote dependencies
+import com.example.tinycell.data.repository.RemoteListingRepository
+
 /**
- * // Week1
- * LISTING REPOSITORY
+ * [PHASE 3]: REPOSITORY SYNC STRATEGY
  *
- * Repository pattern implementation for marketplace listings.
- * Handles data operations using Room database for local persistence.
+ * This repository implements the Local-First pattern.
+ * - Room is the Single Source of Truth for the UI.
+ * - Firestore is the remote source of truth.
  *
- * Current: Room database for local storage
- * Future: Add Retrofit API for remote sync (coordinate with Member 4 - Networking)
- */
-/**
- * //  Week2 Friday
- * TODO: Camera Integrator Hook
- * - [IMAGE_URI]: Use the URI provided by the CameraX implementation here.
- * - [FILE_SYSTEM]: Implement logic to copy the temporary camera file to the app's internal storage
- *   to ensure the image persists after the cache is cleared.
+ * [LEARNING_POINT: OFFLINE-FIRST]
+ * We separate the data stream (Flow from Room) from the sync action (Suspend function).
+ * This ensures the UI is always reactive and works without internet.
  */
 class ListingRepository(
     private val listingDao: ListingDao,
-    private val remoteRepo: ListingRemoteRepository
+    private val remoteRepo: RemoteListingRepository
 ) {
 
-    suspend fun syncFromServer() {
-        val remoteListings = remoteRepo.fetchListings()
-        listingDao.insertAll(
-            remoteListings.map { it.toEntity() }
-        )
-    }
-
-    suspend fun createListing(entity: ListingEntity) {
-        // 1. Save locally first
-        listingDao.insert(entity)
-
-        // 2. Push to Firestore
-        remoteRepo.createListing(entity.toDto())
+    /**
+     * [TODO_SYNC_STRATEGY]: Background Sync
+     * Pulls latest listings from Firestore and saves them to Room.
+     * Room's 'OnConflictStrategy.REPLACE' prevents duplicate IDs.
+     */
+    suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
+        try {
+            // 1. Fetch from Firestore (via RemoteRepo interface)
+            val remoteListings = remoteRepo.fetchListings()
+            
+            // 2. Map DTOs to Entities
+            val entities = remoteListings.map { it.toEntity() }
+            
+            // 3. Update local database
+            listingDao.insertAll(entities)
+        } catch (e: Exception) {
+            // [TODO_ERROR_HANDLING]: Log sync failure (e.g., Network timeout)
+        }
     }
 
     /**
-     * Get all marketplace listings as reactive Flow.
-     * UI can observe this to automatically update when data changes.
+     * UI Observation: Always observe Room.
      */
     val allListings: Flow<List<Listing>> = listingDao.getAllListings()
         .map { entities -> entities.map { it.toListing() } }
 
-    /**
-     * Get active (unsold) listings only.
-     */
     val activeListings: Flow<List<Listing>> = listingDao.getActiveListings()
         .map { entities -> entities.map { it.toListing() } }
 
-    /**
-     * Get a single listing by ID.
-     */
     suspend fun getListingById(id: String): Listing? {
         return listingDao.getListingById(id)?.toListing()
     }
 
     /**
-     * Get listings filtered by category.
+     * [LEARNING_POINT: WRITE-THROUGH CACHE]
+     * When creating a listing, we save to local Room immediately for instant UI feedback,
+     * then push to Firestore to sync with other users.
      */
+    suspend fun createListing(entity: ListingEntity) {
+        // 1. Save locally first (Immediate UI feedback)
+        listingDao.insert(entity)
+
+        // 2. Push to Firestore (Sync to Cloud)
+        try {
+            remoteRepo.createListing(entity.toDto())
+        } catch (e: Exception) {
+            // [TODO_RETRY_LOGIC]: If remote fails, mark for future sync
+        }
+    }
+
+    // --- Search and Filtering Logic ---
+
     fun getListingsByCategory(categoryId: String): Flow<List<Listing>> {
         return listingDao.getListingsByCategory(categoryId)
             .map { entities -> entities.map { it.toListing() } }
     }
 
-    /**
-     * Get listings created by a specific user.
-     */
     fun getListingsByUser(userId: String): Flow<List<Listing>> {
         return listingDao.getListingsByUser(userId)
             .map { entities -> entities.map { it.toListing() } }
     }
 
-    /**
-     * Search listings by title or description.
-     */
     fun searchListings(query: String): Flow<List<Listing>> {
         return listingDao.searchListings(query)
             .map { entities -> entities.map { it.toListing() } }
     }
 
-    /**
-     * Insert a new listing into the database.
-     */
     suspend fun insertListing(listing: Listing) {
         listingDao.insert(listing.toEntity())
     }
 
-    /**
-     * Insert multiple listings (for seeding/bulk operations).
-     */
-    suspend fun insertListings(listings: List<Listing>) {
-        listingDao.insertAll(listings.map { it.toEntity() })
-    }
-
-    /**
-     * Update an existing listing.
-     */
     suspend fun updateListing(listing: Listing) {
         listingDao.update(listing.toEntity())
     }
 
-    /**
-     * Mark a listing as sold.
-     */
     suspend fun markListingAsSold(listingId: String) {
         listingDao.markAsSold(listingId)
     }
 
-    /**
-     * Delete a listing.
-     */
     suspend fun deleteListing(listing: Listing) {
         listingDao.delete(listing.toEntity())
     }
 
-    /**
-     * Get count of listings by user.
-     */
-    suspend fun getListingCountByUser(userId: String): Int {
-        return listingDao.getListingCountByUser(userId)
-    }
-
-
-    /**
-     * Logic for the new Create Listing Feature
-     * One Responsibility: Saving a new listing with image paths
-     */
-    /**
-     * [TODO_DATABASE_INTEGRATION]:
-     * - PROBLEM: SQLite Error 787 (Foreign Key Constraint).
-     * - ACTION: Ensure 'userId' and 'categoryId' exist in their respective tables
-     *   before calling listingDao.insert().
-     * - FIX: Implement a check here or seed the database with default values
-     *   (e.g., a default user and a "General" category).
-     */
     suspend fun createNewListing(
         title: String,
         price: Double,
@@ -157,9 +119,7 @@ class ListingRepository(
         category: String,
         imagePaths: List<String>
     ) = withContext(Dispatchers.IO) {
-        // [TODO_DATABASE_INTEGRATION]:
-        // To resolve Error 787, ensure these IDs are seeded in AppDatabase
-        val sellerId = "user_1"; // assiocated to a user account.
+        val sellerId = "user_1"
         val catId = category.ifBlank { "General" }
 
         val newListing = Listing(
@@ -172,52 +132,37 @@ class ListingRepository(
             imageUrl = imagePaths.joinToString(",")
         )
 
-        try {
-            listingDao.insert(newListing.toEntity())
-        } catch (e: android.database.sqlite.SQLiteConstraintException) {
-            // [TODO_ERROR_HANDLING]: Log this specifically as a Foreign Key violation
-            throw Exception("Foreign Key Violation: Ensure User '$sellerId' and Category '$catId' exist.")
-        }
-    }//end  of function
-}// end of  class
+        // Use the unified createListing logic
+        createListing(newListing.toEntity())
+    }
+}
 
 /**
- * Extension function: Convert ListingEntity (database) to Listing (UI model).
+ * Mappers remain separate to keep Repository clean.
  */
 private fun ListingEntity.toListing(): Listing {
     return Listing(
         id = id,
         title = title,
         price = price,
-        category = categoryId,  // TODO: Convert categoryId to category name (coordinate with Category repository)
-        sellerName = userId,    // TODO: Convert userId to seller name (coordinate with User repository)
+        category = categoryId,
+        sellerName = userId,
         description = description,
-        imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() }  // Get first image URL
-        // imageUrl = imageUrls //suggested change as you want an image carousel eventually(?)
+        imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() }
     )
 }
 
-/**
- * Extension function: Convert Listing (UI model) to ListingEntity (database).
- */
 private fun Listing.toEntity(): ListingEntity {
     return ListingEntity(
         id = id,
         title = title,
         description = description ?: "",
         price = price,
-        userId = "user_1",  // TODO: Get from authentication system when implemented
-        categoryId = category,  // Assuming category is the ID for now
-        location = null,  // TODO: Add location field to Listing model when location feature is implemented
-        // If the UI model only has one image, we save it;
-        // the createNewListing function handles joining multiple paths.
+        userId = "user_1",
+        categoryId = category,
+        location = null,
         imageUrls = imageUrl ?: "",
         createdAt = System.currentTimeMillis(),
         isSold = false
     )
 }
-
-
-
-
-

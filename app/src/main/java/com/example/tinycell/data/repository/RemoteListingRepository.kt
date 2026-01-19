@@ -4,14 +4,21 @@ import com.example.tinycell.data.remote.model.ListingDto
 import kotlinx.coroutines.flow.Flow
 
 /**
- * [TODO_NETWORKING_INTEGRATION]
- * One Responsibility: Abstract Firestore operations for Listings.
+ * [PHASE 3]: Unified Remote Listing Repository.
+ * This is the single contract for all Cloud Firestore operations.
  */
 interface RemoteListingRepository {
     /**
-     * Streams all listings from Firestore.
+     * [LEARNING_POINT: REAL-TIME FLOW]
+     * Streams updates. UI observes this for instant changes.
      */
     fun getRemoteListings(): Flow<List<ListingDto>>
+
+    /**
+     * [LEARNING_POINT: ONE-SHOT FETCH]
+     * Used by ListingRepository.syncFromRemote() to hydrate local Room.
+     */
+    suspend fun fetchListings(): List<ListingDto>
 
     /**
      * Pushes a new listing to Firestore.

@@ -8,10 +8,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 /**
- * [LEARNING_POINT: REAL-TIME UPDATES]
- * We use 'callbackFlow' instead of 'flow' because Firestore's 'addSnapshotListener'
- * is a multi-shot callback. callbackFlow allows us to convert these continuous
- * updates into a Kotlin Coroutine Flow, keeping the UI reactive.
+ * [PHASE 3]: Firestore Implementation of RemoteListingRepository.
+ * Handles the actual calls to the Firebase SDK.
  */
 class FirestoreListingRepositoryImpl(
     private val firestore: FirebaseFirestore
@@ -19,9 +17,11 @@ class FirestoreListingRepositoryImpl(
 
     private val listingsCollection = firestore.collection("listings")
 
+    /**
+     * [LEARNING_POINT: SNAPSHOT LISTENERS]
+     * Provides real-time updates as they happen in the cloud.
+     */
     override fun getRemoteListings(): Flow<List<ListingDto>> = callbackFlow {
-        // [TODO_FIREBASE_INTEGRATION]: Implement error handling logic for
-        // snapshot listener (e.g., logging permission issues).
         val subscription = listingsCollection
             .whereEqualTo("isSold", false)
             .addSnapshotListener { snapshot, error ->
@@ -34,15 +34,28 @@ class FirestoreListingRepositoryImpl(
                 trySend(items)
             }
 
-        // Ensure listener is removed when the Flow collection stops
         awaitClose { subscription.remove() }
     }
 
+    /**
+     * [LEARNING_POINT: ONE-SHOT FETCH]
+     * Used for initial sync to avoid keeping a long-lived listener if not needed.
+     */
+    override suspend fun fetchListings(): List<ListingDto> {
+        return try {
+            val snapshot = listingsCollection.whereEqualTo("isSold", false).get().await()
+            snapshot.toObjects(ListingDto::class.java)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     override suspend fun uploadListing(listing: ListingDto): Result<Unit> = try {
-        // [LEARNING_POINT: DOCUMENT ID]
-        // We set the document ID to match the DTO ID for consistency between
-        // Local Room and Remote Firestore.
-        listingsCollection.document(listing.id).set(listing).await()
+        // Use ID from DTO if provided, otherwise Firestore auto-generates
+        val docRef = if (listing.id.isBlank()) listingsCollection.document() else listingsCollection.document(listing.id)
+        val finalListing = if (listing.id.isBlank()) listing.copy(id = docRef.id) else listing
+        
+        docRef.set(finalListing).await()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.failure(e)

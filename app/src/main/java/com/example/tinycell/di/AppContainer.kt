@@ -5,11 +5,8 @@ import androidx.room.Room
 import com.example.tinycell.data.local.AppDatabase
 import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.data.repository.CameraRepository
-
-//Firestore integration
 import com.example.tinycell.data.repository.RemoteListingRepository
 import com.example.tinycell.data.repository.FirestoreListingRepositoryImpl
-
 import com.example.tinycell.data.remote.datasource.FirestoreListingDataSource
 import com.example.tinycell.data.remote.datasource.FirestoreUserDataSource
 import com.example.tinycell.data.remote.datasource.FirestoreChatDataSource
@@ -18,19 +15,16 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 import com.example.tinycell.data.local.entity.CategoryEntity
 import com.example.tinycell.data.local.entity.UserEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 /**
- * [LEARNING_POINT: SERVICE LOCATOR PATTERN]
- * AppContainer acts as a central hub for all dependencies. By using 'lazy',
- * we ensure that heavy objects like the Room Database or Firestore are
- * only created when they are actually needed by a screen.
- * [PHASE 2]: Dependency Injection Container.
- * Updated to include Firestore Data Sources.
+ * [PHASE 3]: Dependency Injection Container.
+ * Updated to handle Startup Sync for the Local-First strategy.
  */
 class AppContainer(private val context: Context) {
 
-    // Initialize Firestore Instance
     private val firestore: FirebaseFirestore by lazy {
         FirebaseFirestore.getInstance()
     }
@@ -39,14 +33,6 @@ class AppContainer(private val context: Context) {
 
     private val listingDataSource: FirestoreListingDataSource by lazy {
         FirestoreListingDataSource(firestore)
-    }
-
-    private val userDataSource: FirestoreUserDataSource by lazy {
-        FirestoreUserDataSource(firestore)
-    }
-
-    private val chatDataSource: FirestoreChatDataSource by lazy {
-        FirestoreChatDataSource(firestore)
     }
 
     // --- DATABASE ---
@@ -62,10 +48,6 @@ class AppContainer(private val context: Context) {
 
     // --- REPOSITORIES ---
 
-    /**
-     * [TODO_NETWORKING_INTEGRATION]:
-     * This handles all Cloud Firestore interactions.
-     */
     val remoteListingRepository: RemoteListingRepository by lazy {
         FirestoreListingRepositoryImpl(firestore)
     }
@@ -78,37 +60,55 @@ class AppContainer(private val context: Context) {
         CameraRepository(context.applicationContext)
     }
 
-    // Seeding logic remains for local development
-    fun seedDatabase() {
+    /**
+     * [LEARNING_POINT: INITIALIZATION STRATEGY]
+     * We combine local seeding (for primary keys/constraints) with remote sync.
+     */
+    fun initializeData() {
         @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val dao = database.listingDao()
-                val currentTime = System.currentTimeMillis()
+        GlobalScope.launch(Dispatchers.IO) {
+            // 1. Seed local data first (Required for Foreign Key integrity)
+            seedDatabase()
+            
+            // 2. Sync from Firestore (Hydrate Room with real data)
+            performRemoteSync()
+        }
+    }
 
-                dao.insertUser(
-                    UserEntity(
-                        id = "user_1",
-                        name = "Default User",
-                        email = "user1@example.com",
-                        profilePicUrl = null,
-                        createdAt = currentTime
-                    )
+    private suspend fun seedDatabase() {
+        try {
+            val dao = database.listingDao()
+            val currentTime = System.currentTimeMillis()
+
+            dao.insertUser(
+                UserEntity(
+                    id = "user_1",
+                    name = "Default User",
+                    email = "user1@example.com",
+                    profilePicUrl = null,
+                    createdAt = currentTime
                 )
+            )
 
-                val categories = listOf("General", "Electronics", "Fashion", "Home", "Toys", "Books")
-                categories.forEach { catName ->
-                    dao.insertCategory(
-                        CategoryEntity(
-                            id = catName,
-                            name = catName,
-                            icon = null
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                // Log error
+            val categories = listOf("General", "Electronics", "Fashion", "Home", "Toys", "Books")
+            categories.forEach { catName ->
+                dao.insertCategory(
+                    CategoryEntity(id = catName, name = catName, icon = null)
+                )
             }
+        } catch (e: Exception) {
+            // Log seeding error
+        }
+    }
+
+    /**
+     * [PHASE 3]: Background Remote Sync
+     */
+    private suspend fun performRemoteSync() {
+        try {
+            listingRepository.syncFromRemote()
+        } catch (e: Exception) {
+            // [TODO_ERROR_HANDLING]: Implement a notification or retry snackbar in UI
         }
     }
 }
