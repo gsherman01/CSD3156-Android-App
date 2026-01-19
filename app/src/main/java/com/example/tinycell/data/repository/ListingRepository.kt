@@ -14,26 +14,20 @@ import kotlinx.coroutines.withContext
 private const val TAG = "ListingRepository"
 
 /**
- * [PHASE 4]: Dual Write Strategy Implementation.
- * 
- * Orchestrates data between Local Room (Source of Truth for UI) 
- * and Remote Firestore (Source of Truth for Cloud).
+ * [PHASE 5.5]: Updated ListingRepository with Auth Integration.
  */
 class ListingRepository(
     private val listingDao: ListingDao,
     private val remoteRepo: RemoteListingRepository,
-    private val imageRepo: RemoteImageRepository
+    private val imageRepo: RemoteImageRepository,
+    private val authRepo: AuthRepository // Added in Phase 5.5
 ) {
 
-    /**
-     * [PHASE 3]: Background Remote Sync.
-     */
     suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
         try {
             val remoteListings = remoteRepo.fetchListings()
             val entities = remoteListings.map { it.toEntity() }
             listingDao.insertAll(entities)
-            Log.d(TAG, "Sync successful: ${entities.size} items updated.")
         } catch (e: Exception) {
             Log.e(TAG, "Sync failed: ${e.message}")
         }
@@ -50,46 +44,33 @@ class ListingRepository(
     }
 
     /**
-     * [PHASE 4]: DUAL WRITE STRATEGY
-     * 
-     * 1. IMMEDIATE LOCAL WRITE: Save to Room so UI updates instantly.
-     * 2. ASYNC REMOTE WRITE: Upload images and metadata to Firebase.
-     * 
-     * [LEARNING_POINT: CONSISTENCY]
-     * Room is updated twice: first with local file paths, then with remote URLs.
-     * This ensures the user can see their image even before it's uploaded.
+     * [PHASE 5.5]: Dual Write with Real Auth UID.
      */
     suspend fun createListing(entity: ListingEntity) = withContext(Dispatchers.IO) {
-        // 1. Save locally first (Optimistic Update)
-        listingDao.insert(entity)
-        Log.d(TAG, "Local write success: ${entity.id}")
+        // 1. Ensure we have the correct UID from Auth
+        val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
+        val secureEntity = entity.copy(userId = currentUid)
+
+        // 2. Save locally first
+        listingDao.insert(secureEntity)
 
         try {
-            // 2. Process Images (Local Path -> Cloud URL)
-            val localPaths = if (entity.imageUrls.isEmpty()) emptyList() else entity.imageUrls.split(",")
+            // 3. Process Images
+            val localPaths = if (secureEntity.imageUrls.isEmpty()) emptyList() else secureEntity.imageUrls.split(",")
             
             if (localPaths.isNotEmpty()) {
-                Log.d(TAG, "Starting image upload for: ${entity.id}")
                 val uploadResult = imageRepo.uploadImages(localPaths)
-                
                 val remoteUrls = uploadResult.getOrThrow()
-                val updatedEntity = entity.copy(imageUrls = remoteUrls.joinToString(","))
+                val updatedEntity = secureEntity.copy(imageUrls = remoteUrls.joinToString(","))
 
-                // 3. Update local Room with cloud URLs
                 listingDao.update(updatedEntity)
-                
-                // 4. Push to Firestore
                 remoteRepo.uploadListing(updatedEntity.toDto()).getOrThrow()
-                Log.d(TAG, "Remote write success: ${entity.id}")
             } else {
-                // No images, push metadata directly
-                remoteRepo.uploadListing(entity.toDto()).getOrThrow()
+                remoteRepo.uploadListing(secureEntity.toDto()).getOrThrow()
             }
             
         } catch (e: Exception) {
-            // [TODO_RETRY_STRATEGY]: In a real app, we would mark this entity 
-            // as "needs_sync" in Room and use WorkManager to retry later.
-            Log.e(TAG, "Remote write failed for ${entity.id}: ${e.message}")
+            Log.e(TAG, "Remote write failed for ${secureEntity.id}: ${e.message}")
         }
     }
 
@@ -136,7 +117,7 @@ class ListingRepository(
         category: String,
         imagePaths: List<String>
     ) {
-        val sellerId = "user_1"
+        val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val catId = category.ifBlank { "General" }
 
         val newListing = Listing(
@@ -144,17 +125,17 @@ class ListingRepository(
             title = title,
             price = price,
             category = catId,
-            sellerName = sellerId,
+            sellerName = currentUid,
             description = description,
             imageUrl = imagePaths.joinToString(",")
         )
 
-        createListing(newListing.toEntity())
+        createListing(newListing.toEntity(currentUid))
     }
 }
 
 /**
- * Mappers
+ * Mappers updated for Phase 5.5
  */
 private fun ListingEntity.toListing(): Listing {
     return Listing(
@@ -168,13 +149,13 @@ private fun ListingEntity.toListing(): Listing {
     )
 }
 
-private fun Listing.toEntity(): ListingEntity {
+private fun Listing.toEntity(uid: String = "anonymous"): ListingEntity {
     return ListingEntity(
         id = id,
         title = title,
         description = description ?: "",
         price = price,
-        userId = "user_1",
+        userId = uid,
         categoryId = category,
         location = null,
         imageUrls = imageUrl ?: "",

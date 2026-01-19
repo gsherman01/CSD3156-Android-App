@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Users Collection
+    // Anyone authenticated can view profiles; only the owner can edit their own profile.
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 2. Listings Collection
+    // Public read access for browsing.
+    // Create: Must be authenticated.
+    // Update/Delete: Must be the owner of the listing.
+    match /listings/{listingId} {
+      allow read: if true; 
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+
+    // 3. Chats Collection
+    // Read: Only participants (sender or receiver) can read.
+    // Create: Must be authenticated and set themselves as sender.
+    match /chats/{msgId} {
+      allow read: if request.auth != null && 
+        (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
+      
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.senderId;
+        
+      allow update, delete: if false; // Messages are immutable
+    }
+
+    // 4. Favourites Collection
+    // Private per user.
+    match /favourites/{favId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid);
+    }
+  }
+}
