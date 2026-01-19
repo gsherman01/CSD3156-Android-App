@@ -10,7 +10,9 @@
         android:maxSdkVersion="28" />
 
 
+    <!-- [FIX]: Added android:name=".MarketplaceApp" to link the custom Application class -->
     <application
+        android:name=".MarketplaceApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
