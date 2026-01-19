@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.map
 //import com.example.tinycell.data.local.entity.AppEntity // Assuming ListingEntity is scaffolded similarly
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+//for remote server side
+import com.example.tinycell.data.remote.repository.ListingRemoteRepository
 /**
  * // Week1
  * LISTING REPOSITORY
@@ -28,7 +31,25 @@ import kotlinx.coroutines.withContext
  * - [FILE_SYSTEM]: Implement logic to copy the temporary camera file to the app's internal storage
  *   to ensure the image persists after the cache is cleared.
  */
-class ListingRepository(private val listingDao: ListingDao) {
+class ListingRepository(
+    private val listingDao: ListingDao,
+    private val remoteRepo: ListingRemoteRepository
+) {
+
+    suspend fun syncFromServer() {
+        val remoteListings = remoteRepo.fetchListings()
+        listingDao.insertAll(
+            remoteListings.map { it.toEntity() }
+        )
+    }
+
+    suspend fun createListing(entity: ListingEntity) {
+        // 1. Save locally first
+        listingDao.insert(entity)
+
+        // 2. Push to Firestore
+        remoteRepo.createListing(entity.toDto())
+    }
 
     /**
      * Get all marketplace listings as reactive Flow.
@@ -195,3 +216,8 @@ private fun Listing.toEntity(): ListingEntity {
         isSold = false
     )
 }
+
+
+
+
+

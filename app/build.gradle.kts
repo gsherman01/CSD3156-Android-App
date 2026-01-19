@@ -66,6 +66,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")
 
+    //coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+
     // Jetpack Compose
     // BOM 2024.10.00 is stable and compatible with your current setup
     implementation(platform("androidx.compose:compose-bom:2024.10.00"))

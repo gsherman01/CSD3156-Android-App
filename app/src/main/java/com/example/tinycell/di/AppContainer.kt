@@ -6,75 +6,109 @@ import com.example.tinycell.data.local.AppDatabase
 import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.data.repository.CameraRepository
 
+//Firestore integration
+import com.example.tinycell.data.repository.RemoteListingRepository
+import com.example.tinycell.data.repository.FirestoreListingRepositoryImpl
+
+import com.example.tinycell.data.remote.datasource.FirestoreListingDataSource
+import com.example.tinycell.data.remote.datasource.FirestoreUserDataSource
+import com.example.tinycell.data.remote.datasource.FirestoreChatDataSource
+import com.google.firebase.firestore.FirebaseFirestore
+
+
 import com.example.tinycell.data.local.entity.CategoryEntity
 import com.example.tinycell.data.local.entity.UserEntity
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
 /**
- * [TODO_DI_INTEGRATION]
- * Container for dependency injection.
- * This class provides single instances of the Database and Repositories.
+ * [LEARNING_POINT: SERVICE LOCATOR PATTERN]
+ * AppContainer acts as a central hub for all dependencies. By using 'lazy',
+ * we ensure that heavy objects like the Room Database or Firestore are
+ * only created when they are actually needed by a screen.
+ * [PHASE 2]: Dependency Injection Container.
+ * Updated to include Firestore Data Sources.
  */
 class AppContainer(private val context: Context) {
 
-    // Lazy initialization of the database
+    // Initialize Firestore Instance
+    private val firestore: FirebaseFirestore by lazy {
+        FirebaseFirestore.getInstance()
+    }
+
+    // --- DATA SOURCES ---
+
+    private val listingDataSource: FirestoreListingDataSource by lazy {
+        FirestoreListingDataSource(firestore)
+    }
+
+    private val userDataSource: FirestoreUserDataSource by lazy {
+        FirestoreUserDataSource(firestore)
+    }
+
+    private val chatDataSource: FirestoreChatDataSource by lazy {
+        FirestoreChatDataSource(firestore)
+    }
+
+    // --- DATABASE ---
+
     private val database: AppDatabase by lazy {
         Room.databaseBuilder(
             context.applicationContext,
             AppDatabase::class.java,
             "tinycell_db"
-        ).fallbackToDestructiveMigration() // [TODO_DB_MIGRATION]: Implement proper migrations later
+        ).fallbackToDestructiveMigration()
             .build()
     }
 
-    // Lazy initialization of the repository
-    val listingRepository: ListingRepository by lazy {
-        ListingRepository(database.listingDao())
-    }
-
+    // --- REPOSITORIES ---
 
     /**
-     * [TODO_HARDWARE_INTEGRATION]:
-     * - ACTION: Hardware lead to ensure the Context passed here is the ApplicationContext
-     *   to prevent memory leaks when the camera is initialized.
+     * [TODO_NETWORKING_INTEGRATION]:
+     * This handles all Cloud Firestore interactions.
      */
+    val remoteListingRepository: RemoteListingRepository by lazy {
+        FirestoreListingRepositoryImpl(firestore)
+    }
+
+    val listingRepository: ListingRepository by lazy {
+        ListingRepository(database.listingDao(), remoteListingRepository)
+    }
+
     val cameraRepository: CameraRepository by lazy {
         CameraRepository(context.applicationContext)
     }
 
-
-    /**
-     * [TODO_DATABASE_INTEGRATION]:
-     * Seed essential data to prevent Foreign Key violations (Error 787).
-     * This ensures "user_1" and the categories exist before a listing is created.
-     */
+    // Seeding logic remains for local development
     fun seedDatabase() {
-        MainScope().launch {
-            val dao = database.listingDao()
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val dao = database.listingDao()
+                val currentTime = System.currentTimeMillis()
 
-            // Seed Default User
-            dao.insertUser(
-                UserEntity(
-                    id = "user_1",
-                    name = "Default User",
-                    email = "user1@example.com",
-                    profilePicUrl = null,
-                    createdAt = System.currentTimeMillis() //  this looks problematic
-                )
-            )
-
-            // Seed Categories matching CreateListingViewModel choices
-            val categories = listOf("General", "Electronics", "Fashion", "Home", "Toys", "Books")
-            categories.forEach { catName ->
-                dao.insertCategory(
-                    CategoryEntity(
-                        id = catName,
-                        name = catName,
-                        icon = null
+                dao.insertUser(
+                    UserEntity(
+                        id = "user_1",
+                        name = "Default User",
+                        email = "user1@example.com",
+                        profilePicUrl = null,
+                        createdAt = currentTime
                     )
                 )
+
+                val categories = listOf("General", "Electronics", "Fashion", "Home", "Toys", "Books")
+                categories.forEach { catName ->
+                    dao.insertCategory(
+                        CategoryEntity(
+                            id = catName,
+                            name = catName,
+                            icon = null
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                // Log error
             }
         }
-    }//end of seedDatabase function
-}//end of class
+    }
+}

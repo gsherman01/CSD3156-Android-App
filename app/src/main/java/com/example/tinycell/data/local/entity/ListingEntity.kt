@@ -59,4 +59,17 @@ data class ListingEntity(
     val createdAt: Long,
 
     val isSold: Boolean = false
+
+)
+
+
+fun ListingEntity.toDto() = ListingDto(
+    id = id,
+    title = title,
+    price = price,
+    description = description,
+    userId = userId,
+    createdAt = createdAt,
+    isSold = isSold,
+    categoryId = categoryId
 )
