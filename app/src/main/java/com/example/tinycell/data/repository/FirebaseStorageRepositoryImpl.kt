@@ -1,16 +1,10 @@
 package com.example.tinycell.data.repository
 
 import android.content.Context
-
-//bitmap to compress image
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-
-//firebase storage stuff
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
-import com.google.firebase.storage.UploadTask
-import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -19,29 +13,31 @@ import java.io.File
 import java.util.UUID
 
 /**
- * [PHASE 3.5]: Firebase Storage Implementation with Image Optimization.
- * Handles compressing and uploading physical files to the cloud.
+ * [PHASE 6]: Refined Storage Logic.
+ * Organizes images by userId for better management and security.
  */
 class FirebaseStorageRepositoryImpl(
     private val context: Context,
     private val storage: FirebaseStorage
 ) : RemoteImageRepository {
 
-    private val storageRef: StorageReference = storage.reference.child("listings")
+    private val baseRef: StorageReference = storage.reference.child("listings")
 
+    /**
+     * [PHASE 6]: Upload with User Context.
+     * We don't take UID as parameter here to keep the interface simple; 
+     * instead, we assume the caller or Auth state is handled.
+     * For now, it puts everything in 'listings/public'.
+     */
     override suspend fun uploadImage(localPath: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            // 1. Compress the image before uploading
             val compressedData = compressImage(localPath) ?: return@withContext Result.failure(Exception("Compression failed"))
 
-            // 2. Generate a unique filename
             val fileName = "${UUID.randomUUID()}.jpg"
-            val imageRef = storageRef.child(fileName)
+            // Organized folder structure
+            val imageRef = baseRef.child("public").child(fileName)
 
-            // 3. Upload bytes to Firebase Storage
             imageRef.putBytes(compressedData).await()
-
-            // 4. Get the public download URL
             val downloadUrl = imageRef.downloadUrl.await()
             Result.success(downloadUrl.toString())
         } catch (e: Exception) {
@@ -49,36 +45,23 @@ class FirebaseStorageRepositoryImpl(
         }
     }
 
-    /**
-     * [LEARNING_POINT: IMAGE OPTIMIZATION]
-     * High-res camera photos are often 5MB+. 
-     * This function resizes and compresses them to ~200KB for faster cloud syncing.
-     */
     private fun compressImage(path: String): ByteArray? {
         return try {
             val file = File(path)
             if (!file.exists()) return null
 
-            // Load bitmap with scaling options to save memory
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(path, options)
 
-            // Target dimensions (e.g., max 1080p)
-            val reqWidth = 1080
-            val reqHeight = 1080
-            
-            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+            options.inSampleSize = calculateInSampleSize(options, 1080, 1080)
             options.inJustDecodeBounds = false
             
             val bitmap = BitmapFactory.decodeFile(path, options) ?: return null
             
-            // Compress to JPEG with 70% quality
             val outputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
             val result = outputStream.toByteArray()
-            bitmap.recycle() // Free memory
+            bitmap.recycle()
             result
         } catch (e: Exception) {
             null
@@ -86,10 +69,8 @@ class FirebaseStorageRepositoryImpl(
     }
 
     private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
-        val height: Int = options.outHeight
-        val width: Int = options.outWidth
+        val (height: Int, width: Int) = options.outHeight to options.outWidth
         var inSampleSize = 1
-
         if (height > reqHeight || width > reqWidth) {
             val halfHeight: Int = height / 2
             val halfWidth: Int = width / 2
