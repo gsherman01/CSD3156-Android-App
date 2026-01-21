@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "981458729880",
+    "project_id": "tinysell-csd3121",
+    "storage_bucket": "tinysell-csd3121.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:981458729880:android:b656321c27bca9381c49ed",
+        "android_client_info": {
+          "package_name": "com.example.tinycell"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQ5eGQ_NYtveSv5jbDv1OhTI6uGso6q6E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
