@@ -3,8 +3,7 @@ package com.example.tinycell.data.remote.model
 import com.example.tinycell.data.local.entity.ListingEntity
 
 /**
- * Data Transfer Object for Firestore listings.
- * Uses flat structure and simple types for easy console preview and sync.
+ * [FINAL VERSION]: Data Transfer Object for Firestore listings.
  */
 data class ListingDto(
     val id: String = "",
@@ -14,6 +13,7 @@ data class ListingDto(
     val categoryId: String = "",
     val imageUrls: List<String> = emptyList(),
     val userId: String = "",
+    val sellerName: String = "", // Denormalized for Firestore browsing
     val location: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isSold: Boolean = false
@@ -25,24 +25,10 @@ fun ListingDto.toEntity() = ListingEntity(
     description = description,
     price = price,
     userId = userId,
+    sellerName = sellerName,
     categoryId = categoryId,
     location = location,
-    // Convert List to CSV for Room
     imageUrls = imageUrls.joinToString(","),
-    createdAt = createdAt,
-    isSold = isSold
-)
-
-fun ListingEntity.toDto() = ListingDto(
-    id = id,
-    title = title,
-    description = description,
-    price = price,
-    categoryId = categoryId,
-    // Convert CSV back to List for Firestore/UI
-    imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(","),
-    userId = userId,
-    location = location,
     createdAt = createdAt,
     isSold = isSold
 )

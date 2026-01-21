@@ -4,8 +4,7 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 
 /**
- * [PHASE 5.6]: Firebase Auth Implementation.
- * Updated with Debug/Admin features for single-device testing.
+ * [PHASE 5.8]: Firebase Auth Implementation with Admin Controls.
  */
 class FirebaseAuthRepositoryImpl(
     private val auth: FirebaseAuth
@@ -14,8 +13,11 @@ class FirebaseAuthRepositoryImpl(
     private var debugUserId: String? = null
 
     override fun getCurrentUserId(): String? {
-        // [ADMIN_OVERRIDE]: If a debug ID is set, use it. Otherwise use real Auth.
         return debugUserId ?: auth.currentUser?.uid
+    }
+
+    override fun getCurrentUserName(): String? {
+        return auth.currentUser?.displayName ?: "User_${getCurrentUserId()?.takeLast(4)}"
     }
 
     override suspend fun signInAnonymously(): Result<Unit> = try {

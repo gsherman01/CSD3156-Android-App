@@ -7,7 +7,8 @@ import androidx.room.PrimaryKey
 import com.example.tinycell.data.remote.model.ListingDto
 
 /**
- * Room entity for Listing table.
+ * [FINAL VERSION]: Room entity for Listing table.
+ * Includes denormalized sellerName for performance.
  */
 @Entity(
     tableName = "listings",
@@ -37,9 +38,10 @@ data class ListingEntity(
     val description: String,
     val price: Double,
     val userId: String,
+    val sellerName: String = "", // Denormalized for fast browsing
     val categoryId: String,
     val location: String? = null,
-    val imageUrls: String = "",
+    val imageUrls: String = "", // CSV format for Room
     val createdAt: Long,
     val isSold: Boolean = false
 )
@@ -47,12 +49,13 @@ data class ListingEntity(
 fun ListingEntity.toDto() = ListingDto(
     id = id,
     title = title,
-    price = price,
     description = description,
+    price = price,
     userId = userId,
-    createdAt = createdAt,
-    isSold = isSold,
+    sellerName = sellerName,
     categoryId = categoryId,
-    // [FIX]: Map CSV string back to List for Firestore
-    imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(",")
+    location = location,
+    imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(","),
+    createdAt = createdAt,
+    isSold = isSold
 )

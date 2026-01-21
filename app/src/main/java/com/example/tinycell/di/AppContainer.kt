@@ -1,38 +1,43 @@
 package com.example.tinycell.di
 
 import android.content.Context
-import androidx.room.Room
+import android.util.Log
 import com.example.tinycell.data.local.AppDatabase
-import com.example.tinycell.data.repository.ListingRepository
-import com.example.tinycell.data.repository.CameraRepository
-import com.example.tinycell.data.repository.RemoteListingRepository
-import com.example.tinycell.data.repository.RemoteImageRepository
-import com.example.tinycell.data.repository.AuthRepository
-import com.example.tinycell.data.repository.FirestoreListingRepositoryImpl
-import com.example.tinycell.data.repository.FirebaseStorageRepositoryImpl
-import com.example.tinycell.data.repository.FirebaseAuthRepositoryImpl
-import com.example.tinycell.data.remote.datasource.FirestoreListingDataSource
+import com.example.tinycell.data.repository.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
-
-
 import com.example.tinycell.data.local.entity.CategoryEntity
 import com.example.tinycell.data.local.entity.UserEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
+private const val TAG = "AppContainer"
+
 /**
- * [PHASE 5.5]: Dependency Injection Container with Simple Auth.
+ * Dependency Injection Container.
  */
 class AppContainer(private val context: Context) {
 
-    private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
-    private val storage: FirebaseStorage by lazy { FirebaseStorage.getInstance() }
-    private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+    init {
+        Log.d(TAG, "Initializing AppContainer...")
+    }
 
-    // --- REPOSITORIES ---
+    private val firestore: FirebaseFirestore by lazy {
+        Log.d(TAG, "Creating Firestore instance")
+        FirebaseFirestore.getInstance()
+    }
+    
+    private val storage: FirebaseStorage by lazy {
+        Log.d(TAG, "Creating Firebase Storage instance")
+        FirebaseStorage.getInstance()
+    }
+    
+    private val auth: FirebaseAuth by lazy {
+        Log.d(TAG, "Creating Firebase Auth instance")
+        FirebaseAuth.getInstance()
+    }
 
     val authRepository: AuthRepository by lazy {
         FirebaseAuthRepositoryImpl(auth)
@@ -47,69 +52,67 @@ class AppContainer(private val context: Context) {
     }
 
     val listingRepository: ListingRepository by lazy {
+        Log.d(TAG, "Creating ListingRepository")
         ListingRepository(
             database.listingDao(),
+            database.userDao(),
             remoteListingRepository,
             remoteImageRepository,
-            authRepository // Injected for UID management
+            authRepository
         )
     }
 
-    // --- DATABASE ---
-
     private val database: AppDatabase by lazy {
-        Room.databaseBuilder(
-            context.applicationContext,
-            AppDatabase::class.java,
-            "tinycell_db"
-        ).fallbackToDestructiveMigration().build()
+        Log.d(TAG, "Initializing Room Database")
+        AppDatabase.getDatabase(context)
     }
 
-    val cameraRepository: CameraRepository by lazy {
-        CameraRepository(context.applicationContext)
-    }
-
-    /**
-     * [PHASE 5.5]: Initialize App with Anonymous Auth.
-     */
     fun initializeData() {
         @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
         GlobalScope.launch(Dispatchers.IO) {
-            // 1. Sign in anonymously to satisfy security rules
-            authRepository.signInAnonymously()
-            
-            // 2. Seed and Sync
-            seedDatabase()
-            performRemoteSync()
+            try {
+                Log.d(TAG, "initializeData: Starting background tasks")
+                authRepository.signInAnonymously()
+                Log.d(TAG, "initializeData: Auth signed in")
+                
+                seedDatabase()
+                Log.d(TAG, "initializeData: Database seeded")
+                
+                performRemoteSync()
+                Log.d(TAG, "initializeData: Remote sync triggered")
+            } catch (e: Exception) {
+                Log.e(TAG, "initializeData: Failed", e)
+            }
         }
     }
 
     suspend fun seedDatabase() {
         try {
-            val dao = database.listingDao()
-            val userId = authRepository.getCurrentUserId() ?: "user_1"
+            val uDao = database.userDao()
+            val lDao = database.listingDao()
+            val userId = authRepository.getCurrentUserId() ?: "anonymous"
+            val currentName = authRepository.getCurrentUserName() ?: "Anonymous"
             val currentTime = System.currentTimeMillis()
 
-            dao.insertUser(
-                UserEntity(
-                    id = userId,
-                    name = "User",
-                    email = "user@example.com",
-                    profilePicUrl = null,
-                    createdAt = currentTime
-                )
-            )
+            Log.d(TAG, "Seeding user: $userId ($currentName)")
+            uDao.insert(UserEntity(id = userId, name = currentName, email = "", createdAt = currentTime))
 
             val categories = listOf("General", "Electronics", "Fashion", "Home", "Toys", "Books")
             categories.forEach { catName ->
-                dao.insertCategory(CategoryEntity(id = catName, name = catName, icon = null))
+                lDao.insertCategory(CategoryEntity(id = catName, name = catName, icon = null))
             }
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e(TAG, "seedDatabase: Failed", e)
+        }
     }
 
     private suspend fun performRemoteSync() {
         try {
+            Log.d(TAG, "Starting remote sync")
             listingRepository.syncFromRemote()
-        } catch (e: Exception) {}
+            Log.d(TAG, "Remote sync completed")
+        } catch (e: Exception) {
+            Log.e(TAG, "performRemoteSync: Failed", e)
+        }
     }
 }
