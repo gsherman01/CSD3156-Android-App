@@ -141,6 +141,7 @@ class ListingRepository(
             title = title,
             price = price,
             category = category.ifBlank { "General" },
+            sellerId = currentUid,
             sellerName = currentName,
             description = description,
             imageUrl = imagePaths.joinToString(",")
@@ -153,12 +154,13 @@ class ListingRepository(
  * Mapping Helpers
  */
 private fun ListingEntity.toListing() = Listing(
-    id = id, 
-    title = title, 
-    price = price, 
-    category = categoryId, 
-    sellerName = sellerName, 
-    description = description, 
+    id = id,
+    title = title,
+    price = price,
+    category = categoryId,
+    sellerId = userId,
+    sellerName = sellerName,
+    description = description,
     imageUrl = imageUrls.split(",").firstOrNull()
 )
 

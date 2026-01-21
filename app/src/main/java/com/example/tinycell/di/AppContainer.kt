@@ -3,12 +3,13 @@ package com.example.tinycell.di
 import android.content.Context
 import android.util.Log
 import com.example.tinycell.data.local.AppDatabase
+import com.example.tinycell.data.local.entity.CategoryEntity
+import com.example.tinycell.data.local.entity.UserEntity
+import com.example.tinycell.data.remote.datasource.FirestoreChatDataSource
 import com.example.tinycell.data.repository.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
-import com.example.tinycell.data.local.entity.CategoryEntity
-import com.example.tinycell.data.local.entity.UserEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -59,6 +60,19 @@ class AppContainer(private val context: Context) {
             remoteListingRepository,
             remoteImageRepository,
             authRepository
+        )
+    }
+
+    private val firestoreChatDataSource: FirestoreChatDataSource by lazy {
+        Log.d(TAG, "Creating FirestoreChatDataSource")
+        FirestoreChatDataSource(firestore)
+    }
+
+    val chatRepository: ChatRepository by lazy {
+        Log.d(TAG, "Creating ChatRepository")
+        ChatRepositoryImpl(
+            firestoreChatDataSource,
+            database.chatMessageDao()
         )
     }
 

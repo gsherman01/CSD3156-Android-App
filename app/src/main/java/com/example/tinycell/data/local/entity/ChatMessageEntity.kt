@@ -38,12 +38,15 @@ import androidx.room.PrimaryKey
         Index(value = ["senderId"]),
         Index(value = ["receiverId"]),
         Index(value = ["listingId"]),
+        Index(value = ["chatRoomId"]),
         Index(value = ["timestamp"])
     ]
 )
 data class ChatMessageEntity(
     @PrimaryKey
     val id: String,
+
+    val chatRoomId: String,
 
     val senderId: String,
 

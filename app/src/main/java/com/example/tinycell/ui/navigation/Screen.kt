@@ -1,5 +1,9 @@
 package com.example.tinycell.ui.navigation
 
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+
 /**
  * [NAV_ROUTE_DOCUMENTATION]
  * Sealed class defining all available routes in the app.
@@ -7,8 +11,27 @@ package com.example.tinycell.ui.navigation
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object CreateListing : Screen("create_listing")
-    object Profile : Screen("profile") // Added Profile route
+    object Profile : Screen("profile")
     object ListingDetail : Screen("listing_detail/{listingId}") {
         fun createRoute(listingId: String) = "listing_detail/$listingId"
+    }
+    object Chat : Screen("chat/{chatRoomId}/{listingId}/{listingTitle}/{otherUserId}/{otherUserName}") {
+        fun createRoute(
+            chatRoomId: String,
+            listingId: String,
+            listingTitle: String,
+            otherUserId: String,
+            otherUserName: String
+        ): String {
+            val encodedTitle = URLEncoder.encode(listingTitle, StandardCharsets.UTF_8.toString())
+            val encodedName = URLEncoder.encode(otherUserName, StandardCharsets.UTF_8.toString())
+            return "chat/$chatRoomId/$listingId/$encodedTitle/$otherUserId/$encodedName"
+        }
+
+        fun decodeTitle(encoded: String): String =
+            URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+
+        fun decodeName(encoded: String): String =
+            URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
     }
 }

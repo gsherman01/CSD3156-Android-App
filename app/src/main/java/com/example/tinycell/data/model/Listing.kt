@@ -9,6 +9,7 @@ data class Listing(
     val title: String,
     val price: Double,
     val category: String,
+    val sellerId: String,             // Seller's user ID for chat functionality
     val sellerName: String,
     val description: String? = null,  // Optional description for detail screen
     val imageUrl: String? = null      // Optional image URL (placeholder-ready for AsyncImage)

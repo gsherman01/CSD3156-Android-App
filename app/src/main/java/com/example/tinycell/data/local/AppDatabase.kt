@@ -36,7 +36,7 @@ import com.example.tinycell.data.local.entity.UserEntity
         FavouriteEntity::class,
         ChatMessageEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -74,8 +74,8 @@ abstract class AppDatabase : RoomDatabase() {
                     // Uncomment for development to allow main thread queries (NOT recommended for production)
                     // .allowMainThreadQueries()
 
-                    // Uncomment to destroy and rebuild database on version conflicts (useful during development)
-                    // .fallbackToDestructiveMigration()
+                    // Destroy and rebuild database on version conflicts (useful during development)
+                    .fallbackToDestructiveMigration()
 
                     .build()
 

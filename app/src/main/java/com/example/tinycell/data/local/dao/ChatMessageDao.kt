@@ -81,6 +81,19 @@ interface ChatMessageDao {
     fun getMessagesForListing(listingId: String): Flow<List<ChatMessageEntity>>
 
     /**
+     * Get all messages for a specific chat room.
+     * Primary query for chat screen.
+     */
+    @Query("SELECT * FROM chat_messages WHERE chatRoomId = :chatRoomId ORDER BY timestamp ASC")
+    fun getMessagesByChatRoom(chatRoomId: String): Flow<List<ChatMessageEntity>>
+
+    /**
+     * Mark all messages in a chat room as read for a receiver.
+     */
+    @Query("UPDATE chat_messages SET isRead = 1 WHERE chatRoomId = :chatRoomId AND receiverId = :receiverId AND isRead = 0")
+    suspend fun markChatRoomAsRead(chatRoomId: String, receiverId: String)
+
+    /**
      * Get all unread messages for a user.
      */
     @Query("SELECT * FROM chat_messages WHERE receiverId = :userId AND isRead = 0 ORDER BY timestamp DESC")

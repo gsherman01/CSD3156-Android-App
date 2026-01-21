@@ -8,10 +8,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,8 +22,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tinycell.data.local.AppDatabase
+import com.example.tinycell.data.repository.AuthRepository
+import com.example.tinycell.data.repository.ChatRepository
 import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.ui.components.PriceTag
+import kotlinx.coroutines.launch
 
 /**
  * LISTING DETAIL SCREEN
@@ -51,11 +53,12 @@ import com.example.tinycell.ui.components.PriceTag
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListingDetailScreen(
-    //listingId: String
     listingId: String,
-    repository: ListingRepository, // Injected via NavHost
-    onNavigateBack: () -> Unit      // Required for the TopAppBar
-
+    repository: ListingRepository,
+    authRepository: AuthRepository,
+    chatRepository: ChatRepository,
+    onNavigateBack: () -> Unit,
+    onNavigateToChat: (chatRoomId: String, listingId: String, listingTitle: String, otherUserId: String, otherUserName: String) -> Unit
 ) {
     /*
     // Get application context to initialize database
@@ -88,6 +91,11 @@ fun ListingDetailScreen(
     val listing by viewModel.listing.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    var isStartingChat by remember { mutableStateOf(false) }
+
+    // Get current user info
+    val currentUserId = authRepository.getCurrentUserId() ?: ""
 
     // Show loading indicator
     if (isLoading) {
@@ -225,7 +233,70 @@ fun ListingDetailScreen(
                         )
                     }
 
-                    // Spacing for bottom actions (future: Chat, Buy buttons)
+                    // Chat with Seller button (only shown if viewer is not the seller)
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    val isCurrentUserSeller = currentUserId == listingData.sellerId
+
+                    if (!isCurrentUserSeller) {
+                        Button(
+                            onClick = {
+                                isStartingChat = true
+                                coroutineScope.launch {
+                                    try {
+                                        // Create or get the chat room
+                                        val chatRoom = chatRepository.getOrCreateChatRoom(
+                                            listingId = listingData.id,
+                                            listingTitle = listingData.title,
+                                            buyerId = currentUserId,
+                                            sellerId = listingData.sellerId
+                                        )
+
+                                        // Navigate to chat
+                                        onNavigateToChat(
+                                            chatRoom.id,
+                                            listingData.id,
+                                            listingData.title,
+                                            listingData.sellerId,
+                                            listingData.sellerName
+                                        )
+                                    } finally {
+                                        isStartingChat = false
+                                    }
+                                }
+                            },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        enabled = !isStartingChat,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isStartingChat) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Email,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Chat with Seller",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                        }
+                    }
+                    }
+
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }

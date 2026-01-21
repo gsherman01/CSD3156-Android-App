@@ -67,9 +67,9 @@ class FirestoreListingDataSource(
             title = this.title.ifBlank { "Untitled Listing" },
             price = this.price,
             category = this.categoryId.ifBlank { "General" },
-            sellerName = this.userId.ifBlank { "Unknown Seller" },
+            sellerId = this.userId,
+            sellerName = this.sellerName.ifBlank { "Unknown Seller" },
             description = this.description,
-            // Provide the first image as the main URL for the UI model
             imageUrl = this.imageUrls.firstOrNull()
         )
     }

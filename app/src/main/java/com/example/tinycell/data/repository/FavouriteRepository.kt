@@ -108,8 +108,9 @@ private fun ListingEntity.toListing(): Listing {
         id = id,
         title = title,
         price = price,
-        category = categoryId,  // TODO: Convert to category name
-        sellerName = userId,    // TODO: Convert to seller name
+        category = categoryId,
+        sellerId = userId,
+        sellerName = sellerName,
         description = description,
         imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() }
     )

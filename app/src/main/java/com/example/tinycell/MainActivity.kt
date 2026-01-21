@@ -33,11 +33,12 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Pass the listing repository and auth repository to the NavHost
+                    // Pass repositories to the NavHost
                     TinyCellNavHost(
                         navController = navController,
                         listingRepository = appContainer.listingRepository,
-                        authRepository = appContainer.authRepository
+                        authRepository = appContainer.authRepository,
+                        chatRepository = appContainer.chatRepository
                     )
                 }
             }
