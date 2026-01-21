@@ -36,6 +36,7 @@ fun ProfileScreen(
     )
 
     val userId by viewModel.userId.collectAsState()
+    val userName by viewModel.userName.collectAsState()
     var showDebugMenu by remember { mutableStateOf(false) }
 
     Column(
@@ -49,7 +50,7 @@ fun ProfileScreen(
             imageVector = Icons.Default.Person,
             contentDescription = null,
             modifier = Modifier.size(80.dp),
-            theme = MaterialTheme.colorScheme.primary
+            tint = MaterialTheme.colorScheme.primary
         )
         
         Text(
@@ -59,14 +60,17 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Display Current UID (Crucial for testing Firestore Rules)
+        // Display Current UID and Name
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text(text = "Current UID:", style = MaterialTheme.typography.labelSmall)
-                Text(text = userId, style = MaterialTheme.typography.bodyMedium)
+                Text(text = "Username:", style = MaterialTheme.typography.labelSmall)
+                Text(text = userName, style = MaterialTheme.typography.bodyLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = "Internal UID:", style = MaterialTheme.typography.labelSmall)
+                Text(text = userId, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
         }
 
@@ -84,7 +88,7 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Admin/Debug Section ---
-        Divider()
+        HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
         
         TextButton(
@@ -127,8 +131,9 @@ fun AdminDebugPanel(
             color = MaterialTheme.colorScheme.secondary
         )
         
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Enter a mock ID to simulate another user (e.g. 'user_admin', 'buyer_1')",
+            text = "Simulate another user (e.g. 'user_admin', 'buyer_1'). This bypasses real Auth for testing purposes.",
             style = MaterialTheme.typography.bodySmall
         )
 
@@ -136,8 +141,11 @@ fun AdminDebugPanel(
             value = customId,
             onValueChange = { customId = it },
             label = { Text("Mock User ID") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -152,24 +160,9 @@ fun AdminDebugPanel(
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(Icons.Default.Refresh, null)
+                Spacer(Modifier.width(4.dp))
                 Text("Reset")
             }
         }
     }
-}
-
-// Extension to fix the Icon call
-@Composable
-private fun Icon(
-    imageVector: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String?,
-    modifier: Modifier,
-    theme: Color
-) {
-    androidx.compose.material3.Icon(
-        imageVector = imageVector,
-        contentDescription = contentDescription,
-        modifier = modifier,
-        tint = theme
-    )
 }

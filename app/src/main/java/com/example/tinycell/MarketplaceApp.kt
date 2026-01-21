@@ -1,27 +1,37 @@
 package com.example.tinycell
 
 import android.app.Application
+import android.util.Log
 import com.example.tinycell.di.AppContainer
+
+private const val TAG = "MarketplaceApp"
 
 /**
  * Custom Application class for TinyCell.
- *
- * [LEARNING_POINT: APP LIFECYCLE]
- * We initialize the AppContainer here to ensure dependencies are available
- * throughout the app's lifecycle. We also trigger the initial data sync.
  */
 class MarketplaceApp : Application() {
 
-    lateinit var container: AppContainer
+    // [FIX]: Make it nullable or handle initialization carefully to prevent UninitializedPropertyAccessException
+    private var _container: AppContainer? = null
+    val container: AppContainer get() = _container ?: throw IllegalStateException("AppContainer not initialized")
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate: Starting application...")
         
-        // 1. Initialize Dependency Container
-        container = AppContainer(this)
-        
-        // 2. [PHASE 3]: Trigger Startup Sync
-        // This seeds local data and hydrates Room from Firestore
-        container.initializeData()
+        try {
+            // 1. Initialize Dependency Container
+            _container = AppContainer(this)
+            Log.d(TAG, "onCreate: AppContainer initialized successfully")
+            
+            // 2. Trigger Startup Sync
+            container.initializeData()
+            Log.d(TAG, "onCreate: initializeData() triggered")
+            
+        } catch (e: Exception) {
+            // This will log the actual reason (like a missing Firebase config) 
+            // instead of just closing the app silently.
+            Log.e(TAG, "onCreate: Critical failure during initialization", e)
+        }
     }
 }

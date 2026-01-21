@@ -16,14 +16,19 @@ class ProfileViewModel(private val authRepository: AuthRepository) : ViewModel()
     private val _userId = MutableStateFlow(authRepository.getCurrentUserId() ?: "Not Logged In")
     val userId: StateFlow<String> = _userId.asStateFlow()
 
+    private val _userName = MutableStateFlow(authRepository.getCurrentUserName() ?: "Anonymous")
+    val userName: StateFlow<String> = _userName.asStateFlow()
+
     fun switchUser(newId: String) {
         authRepository.setDebugUserId(newId)
         _userId.value = authRepository.getCurrentUserId() ?: "Not Logged In"
+        _userName.value = authRepository.getCurrentUserName() ?: "Anonymous"
     }
 
     fun resetToRealAuth() {
         authRepository.setDebugUserId(null)
         _userId.value = authRepository.getCurrentUserId() ?: "Not Logged In"
+        _userName.value = authRepository.getCurrentUserName() ?: "Anonymous"
     }
 
     fun signOut() {
@@ -31,6 +36,7 @@ class ProfileViewModel(private val authRepository: AuthRepository) : ViewModel()
         viewModelScope.launch {
             authRepository.signInAnonymously()
             _userId.value = authRepository.getCurrentUserId() ?: "Not Logged In"
+            _userName.value = authRepository.getCurrentUserName() ?: "Anonymous"
         }
     }
 }
