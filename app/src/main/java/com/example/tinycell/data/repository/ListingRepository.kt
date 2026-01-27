@@ -127,10 +127,34 @@ class ListingRepository(
         .map { entities -> entities.map { it.toListing() } }
 
     /**
+     * Advanced search with multiple filters
+     */
+    fun searchWithFilters(
+        query: String,
+        categoryId: String,
+        minPrice: Double,
+        maxPrice: Double,
+        minDate: Long,
+        maxDate: Long
+    ): Flow<List<Listing>> = listingDao.searchWithFilters(
+        query = query,
+        categoryId = categoryId,
+        minPrice = minPrice,
+        maxPrice = maxPrice,
+        minDate = minDate,
+        maxDate = maxDate
+    ).map { entities -> entities.map { it.toListing() } }
+
+    /**
+     * Get all categories for filter UI
+     */
+    suspend fun getAllCategories() = listingDao.getAllCategories()
+
+    /**
      * Standard CRUD
      */
     suspend fun markListingAsSold(listingId: String) = listingDao.markAsSold(listingId)
-    
+
     suspend fun deleteListing(listing: Listing) = listingDao.delete(listing.toEntity())
 
     suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>) {

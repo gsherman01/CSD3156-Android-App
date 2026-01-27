@@ -17,6 +17,7 @@ fun TinyCellNavHost(
     navController: NavHostController,
     listingRepository: ListingRepository,
     authRepository: AuthRepository,
+    appContainer: com.example.tinycell.di.AppContainer,
     startDestination: String = Screen.Home.route
 ) {
     NavHost(
@@ -64,7 +65,8 @@ fun TinyCellNavHost(
         // Feature: User Profile & Admin Debug
         composable(Screen.Profile.route) {
             ProfileScreen(
-                authRepository = authRepository
+                authRepository = authRepository,
+                appContainer = appContainer
             )
         }
 
