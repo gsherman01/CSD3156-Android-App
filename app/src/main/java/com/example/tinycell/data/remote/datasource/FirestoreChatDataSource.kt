@@ -132,6 +132,62 @@ class FirestoreChatDataSource(
     }
 
     /**
+     * Get all chat rooms for a specific listing (for seller to see all inquiries).
+     * Returns real-time flow of chat rooms sorted by most recent message.
+     */
+    fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoomDto>> = callbackFlow {
+        Log.d(TAG, "Starting chat rooms listener for listing: $listingId")
+
+        val subscription = chatRoomsCollection
+            .whereEqualTo("listingId", listingId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Chat rooms listener error: ${error.message}")
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                val chatRooms = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(ChatRoomDto::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+
+                // Sort by most recent message (nulls last)
+                val sortedRooms = chatRooms.sortedByDescending { it.lastMessageTimestamp ?: 0L }
+
+                Log.d(TAG, "Received ${sortedRooms.size} chat rooms for listing $listingId")
+                trySend(sortedRooms)
+            }
+
+        awaitClose {
+            Log.d(TAG, "Closing chat rooms listener for listing: $listingId")
+            subscription.remove()
+        }
+    }
+
+    /**
+     * Get unread message count for a specific chat room and user.
+     * Returns real-time flow of unread count.
+     */
+    fun getUnreadMessageCount(chatRoomId: String, userId: String): Flow<Int> = callbackFlow {
+        val subscription = chatMessagesCollection
+            .whereEqualTo("chatRoomId", chatRoomId)
+            .whereEqualTo("receiverId", userId)
+            .whereEqualTo("isRead", false)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Unread count listener error: ${error.message}")
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                val count = snapshot?.size() ?: 0
+                trySend(count)
+            }
+
+        awaitClose { subscription.remove() }
+    }
+
+    /**
      * Legacy method: Get messages between two users for a specific listing.
      * Kept for backward compatibility.
      */

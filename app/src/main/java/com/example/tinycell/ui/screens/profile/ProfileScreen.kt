@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -24,7 +25,8 @@ import com.example.tinycell.data.repository.AuthRepository
  */
 @Composable
 fun ProfileScreen(
-    authRepository: AuthRepository
+    authRepository: AuthRepository,
+    onNavigateToMyListings: () -> Unit = {}
 ) {
     val viewModel: ProfileViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
@@ -77,6 +79,21 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // --- Standard Options ---
+        Button(
+            onClick = onNavigateToMyListings,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.List,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("My Listings")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         Button(
             onClick = { viewModel.signOut() },
             modifier = Modifier.fillMaxWidth(),

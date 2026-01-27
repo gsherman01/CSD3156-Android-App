@@ -12,6 +12,8 @@ import com.example.tinycell.ui.screens.chat.ChatScreen
 import com.example.tinycell.ui.screens.create.CreateListingScreen
 import com.example.tinycell.ui.screens.detail.ListingDetailScreen
 import com.example.tinycell.ui.screens.home.HomeScreen
+import com.example.tinycell.ui.screens.listingchats.ListingChatsScreen
+import com.example.tinycell.ui.screens.mylistings.MyListingsScreen
 import com.example.tinycell.ui.screens.profile.ProfileScreen
 
 @Composable
@@ -74,7 +76,10 @@ fun TinyCellNavHost(
         // Feature: User Profile & Admin Debug
         composable(Screen.Profile.route) {
             ProfileScreen(
-                authRepository = authRepository
+                authRepository = authRepository,
+                onNavigateToMyListings = {
+                    navController.navigate(Screen.MyListings.route)
+                }
             )
         }
 
@@ -105,6 +110,46 @@ fun TinyCellNavHost(
                 chatRepository = chatRepository,
                 onNavigateBack = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        // Feature: My Listings (Seller View)
+        composable(Screen.MyListings.route) {
+            MyListingsScreen(
+                listingRepository = listingRepository,
+                chatRepository = chatRepository,
+                authRepository = authRepository,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToListingChats = { listingId, listingTitle ->
+                    navController.navigate(
+                        Screen.ListingChats.createRoute(listingId, listingTitle)
+                    )
+                }
+            )
+        }
+
+        // Feature: Listing Chats (All chats for a specific listing)
+        composable(Screen.ListingChats.route) { backStackEntry ->
+            val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
+            val listingTitle = backStackEntry.arguments?.getString("listingTitle")?.let {
+                Screen.ListingChats.decodeTitle(it)
+            } ?: ""
+
+            ListingChatsScreen(
+                listingId = listingId,
+                listingTitle = listingTitle,
+                chatRepository = chatRepository,
+                authRepository = authRepository,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToChat = { chatRoomId, lId, lTitle, otherUserId, otherUserName ->
+                    navController.navigate(
+                        Screen.Chat.createRoute(chatRoomId, lId, lTitle, otherUserId, otherUserName)
+                    )
                 }
             )
         }

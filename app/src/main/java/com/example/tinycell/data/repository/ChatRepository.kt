@@ -41,6 +41,18 @@ interface ChatRepository {
     suspend fun markMessagesAsRead(chatRoomId: String, receiverId: String)
 
     /**
+     * Get all chat rooms for a specific listing (for seller to see all inquiries).
+     * Returns real-time flow of chat rooms sorted by most recent message.
+     */
+    fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>>
+
+    /**
+     * Get unread message count for a specific chat room and user.
+     * Returns real-time flow of unread count.
+     */
+    fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int>
+
+    /**
      * Generate deterministic chat room ID.
      */
     fun generateChatRoomId(listingId: String, userId1: String, userId2: String): String

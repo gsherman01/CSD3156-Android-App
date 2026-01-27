@@ -19,20 +19,42 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
 
-    // 3. Chats Collection
+    // 3. Chats Collection (Legacy - kept for backward compatibility)
     // Read: Only participants (sender or receiver) can read.
     // Create: Must be authenticated and set themselves as sender.
     match /chats/{msgId} {
-      allow read: if request.auth != null && 
+      allow read: if request.auth != null &&
         (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
-      
-      allow create: if request.auth != null && 
+
+      allow create: if request.auth != null &&
         request.auth.uid == request.resource.data.senderId;
-        
+
       allow update, delete: if false; // Messages are immutable
     }
 
-    // 4. Favourites Collection
+    // 4. Chat Rooms Collection (Buyer-Seller Chat)
+    // DEV-ONLY: Relaxed rules to allow debug user testing on single device
+    // Any authenticated user can read/create chat rooms
+    match /chat_rooms/{roomId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if false; // Chat rooms are immutable
+    }
+
+    // 5. Chat Messages Collection (Buyer-Seller Chat)
+    // DEV-ONLY: Relaxed rules to allow debug user testing on single device
+    // Any authenticated user can read/create/update messages
+    match /chat_messages/{messageId} {
+      allow read, create: if request.auth != null;
+
+      // Allow any authenticated user to mark messages as read (for debug users)
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']) &&
+        request.resource.data.isRead == true;
+
+      allow delete: if false; // Messages are immutable
+    }
+
+    // 6. Favourites Collection
     // Private per user.
     match /favourites/{favId} {
       allow read, write: if request.auth != null && 

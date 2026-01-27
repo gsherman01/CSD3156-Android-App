@@ -118,6 +118,16 @@ class ChatRepositoryImpl(
         }
     }
 
+    override fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>> {
+        Log.d(TAG, "Getting chat rooms for listing: $listingId")
+        return firestoreChatDataSource.getChatRoomsForListing(listingId)
+            .map { dtos -> dtos.map { it.toDomain() } }
+    }
+
+    override fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int> {
+        return firestoreChatDataSource.getUnreadMessageCount(chatRoomId, userId)
+    }
+
     override fun generateChatRoomId(listingId: String, userId1: String, userId2: String): String {
         // Sort user IDs to ensure deterministic ID regardless of who initiates
         val sortedIds = listOf(userId1, userId2).sorted()

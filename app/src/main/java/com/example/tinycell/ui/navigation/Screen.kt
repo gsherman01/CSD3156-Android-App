@@ -34,4 +34,16 @@ sealed class Screen(val route: String) {
         fun decodeName(encoded: String): String =
             URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
     }
+
+    object MyListings : Screen("my_listings")
+
+    object ListingChats : Screen("listing_chats/{listingId}/{listingTitle}") {
+        fun createRoute(listingId: String, listingTitle: String): String {
+            val encodedTitle = URLEncoder.encode(listingTitle, StandardCharsets.UTF_8.toString())
+            return "listing_chats/$listingId/$encodedTitle"
+        }
+
+        fun decodeTitle(encoded: String): String =
+            URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+    }
 }
