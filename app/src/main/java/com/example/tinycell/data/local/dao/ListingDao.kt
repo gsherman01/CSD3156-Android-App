@@ -136,10 +136,10 @@ interface ListingDao {
 
     /**
      * Advanced search with multiple filters.
-     * Supports text search, category, price range, and date range simultaneously.
+     * Supports text search, multiple categories, price range, and date range simultaneously.
      *
      * @param query Search term for title/description (use "%" for no search)
-     * @param categoryId Category filter (use "" for all categories)
+     * @param categoryIds List of category IDs to filter (empty list = all categories)
      * @param minPrice Minimum price filter
      * @param maxPrice Maximum price filter
      * @param minDate Minimum creation date (timestamp)
@@ -148,7 +148,12 @@ interface ListingDao {
     @Query("""
         SELECT * FROM listings
         WHERE (:query = '%' OR title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%')
-          AND (:categoryId = '' OR categoryId = :categoryId)
+          AND (
+            CASE
+                WHEN :categoryIdsSize = 0 THEN 1
+                ELSE categoryId IN (:categoryIds)
+            END
+          )
           AND price >= :minPrice
           AND price <= :maxPrice
           AND createdAt >= :minDate
@@ -158,7 +163,8 @@ interface ListingDao {
     """)
     fun searchWithFilters(
         query: String,
-        categoryId: String,
+        categoryIds: List<String>,
+        categoryIdsSize: Int,
         minPrice: Double,
         maxPrice: Double,
         minDate: Long,

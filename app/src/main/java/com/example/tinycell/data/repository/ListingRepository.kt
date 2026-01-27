@@ -131,14 +131,15 @@ class ListingRepository(
      */
     fun searchWithFilters(
         query: String,
-        categoryId: String,
+        categoryIds: List<String>,
         minPrice: Double,
         maxPrice: Double,
         minDate: Long,
         maxDate: Long
     ): Flow<List<Listing>> = listingDao.searchWithFilters(
         query = query,
-        categoryId = categoryId,
+        categoryIds = categoryIds,
+        categoryIdsSize = categoryIds.size,
         minPrice = minPrice,
         maxPrice = maxPrice,
         minDate = minDate,
