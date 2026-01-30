@@ -134,7 +134,42 @@ interface ListingDao {
     @Query("SELECT * FROM categories")
     suspend fun getAllCategories(): List<CategoryEntity>
 
-
+    /**
+     * Advanced search with multiple filters.
+     * Supports text search, multiple categories, price range, and date range simultaneously.
+     *
+     * @param query Search term for title/description (use "%" for no search)
+     * @param categoryIds List of category IDs to filter (empty list = all categories)
+     * @param minPrice Minimum price filter
+     * @param maxPrice Maximum price filter
+     * @param minDate Minimum creation date (timestamp)
+     * @param maxDate Maximum creation date (timestamp)
+     */
+    @Query("""
+        SELECT * FROM listings
+        WHERE (:query = '%' OR title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%')
+          AND (
+            CASE
+                WHEN :categoryIdsSize = 0 THEN 1
+                ELSE categoryId IN (:categoryIds)
+            END
+          )
+          AND price >= :minPrice
+          AND price <= :maxPrice
+          AND createdAt >= :minDate
+          AND createdAt <= :maxDate
+          AND isSold = 0
+        ORDER BY createdAt DESC
+    """)
+    fun searchWithFilters(
+        query: String,
+        categoryIds: List<String>,
+        categoryIdsSize: Int,
+        minPrice: Double,
+        maxPrice: Double,
+        minDate: Long,
+        maxDate: Long
+    ): Flow<List<ListingEntity>>
 
 
 }

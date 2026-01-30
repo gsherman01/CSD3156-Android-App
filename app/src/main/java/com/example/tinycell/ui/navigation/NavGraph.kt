@@ -22,6 +22,7 @@ fun TinyCellNavHost(
     listingRepository: ListingRepository,
     authRepository: AuthRepository,
     chatRepository: ChatRepository,
+    appContainer: com.example.tinycell.di.AppContainer,
     startDestination: String = Screen.Home.route
 ) {
     NavHost(
@@ -80,6 +81,7 @@ fun TinyCellNavHost(
                 onNavigateToMyListings = {
                     navController.navigate(Screen.MyListings.route)
                 }
+                appContainer = appContainer
             )
         }
 
