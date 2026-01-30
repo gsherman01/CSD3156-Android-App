@@ -31,7 +31,9 @@ class ListingRepository(
      */
     suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
         try {
+            Log.d(TAG, "DEBUG: Starting remote sync...")
             val remoteListings = remoteRepo.fetchListings()
+            Log.d(TAG, "DEBUG: Received ${remoteListings.size} listings from remote")
             
             remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) ->
                 ensureUserExistsLocally(uid, name)
@@ -53,8 +55,9 @@ class ListingRepository(
                 )
             }
             listingDao.insertAll(entities)
+            Log.d(TAG, "DEBUG: Sync completed, Room database updated.")
         } catch (e: Exception) {
-            Log.e(TAG, "Sync failed: ${e.message}")
+            Log.e(TAG, "DEBUG: Sync failed: ${e.message}")
         }
     }
 
@@ -81,36 +84,53 @@ class ListingRepository(
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
         
+        Log.d(TAG, "DEBUG: Creating listing for user $currentUid")
         ensureUserExistsLocally(currentUid, currentName)
 
         val secureEntity = entity.copy(userId = currentUid, sellerName = currentName)
+        
+        Log.d(TAG, "DEBUG: Writing to local Room database...")
         listingDao.insert(secureEntity)
 
         try {
             val localPaths = if (secureEntity.imageUrls.isEmpty()) emptyList() else secureEntity.imageUrls.split(",")
+            var finalEntity = secureEntity
+
             if (localPaths.isNotEmpty()) {
+                Log.d(TAG, "DEBUG: Uploading images (${localPaths.size})...")
                 val uploadResult = imageRepo.uploadImages(localPaths)
                 val remoteUrls = uploadResult.getOrThrow()
-                val updatedEntity = secureEntity.copy(imageUrls = remoteUrls.joinToString(","))
+                finalEntity = secureEntity.copy(imageUrls = remoteUrls.joinToString(","))
 
-                listingDao.update(updatedEntity)
-                remoteRepo.uploadListing(updatedEntity.toDto()).getOrThrow()
-            } else {
-                remoteRepo.uploadListing(secureEntity.toDto()).getOrThrow()
+                Log.d(TAG, "DEBUG: Updating Room with remote image URLs")
+                listingDao.update(finalEntity)
             }
+
+            Log.d(TAG, "DEBUG: Uploading listing to Firestore...")
+            remoteRepo.uploadListing(finalEntity.toDto()).getOrThrow()
+            Log.d(TAG, "DEBUG: SUCCESS: Listing is now on Firestore.")
+            
         } catch (e: Exception) {
-            Log.e(TAG, "Remote write failed: ${e.message}")
+            Log.e(TAG, "DEBUG: Remote write failed: ${e.message}. Listing remains in local Room.")
         }
     }
 
+    /**
+     * UPDATED: Now updates existing users if their info has changed on the server.
+     */
     private suspend fun ensureUserExistsLocally(uid: String, name: String) {
-        if (userDao.getUserById(uid) == null) {
+        val existingUser = userDao.getUserById(uid)
+        if (existingUser == null) {
+            Log.d(TAG, "Sync: Adding new user $uid ($name)")
             userDao.insert(UserEntity(
                 id = uid,
                 name = name.ifBlank { "User_$uid" },
                 email = "",
                 createdAt = System.currentTimeMillis()
             ))
+        } else if (existingUser.name != name && name.isNotBlank()) {
+            Log.d(TAG, "Sync: Updating existing user name for $uid to $name")
+            userDao.insert(existingUser.copy(name = name)) // OnConflictStrategy.REPLACE handles the update
         }
     }
 
