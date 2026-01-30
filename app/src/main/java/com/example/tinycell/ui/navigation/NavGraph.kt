@@ -80,8 +80,9 @@ fun TinyCellNavHost(
                 authRepository = authRepository,
                 onNavigateToMyListings = {
                     navController.navigate(Screen.MyListings.route)
-                }
-                appContainer = appContainer
+                },
+                appContainer = appContainer,
+
             )
         }
 

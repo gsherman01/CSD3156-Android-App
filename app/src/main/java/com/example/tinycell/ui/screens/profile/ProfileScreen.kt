@@ -26,7 +26,9 @@ import com.example.tinycell.data.repository.AuthRepository
 @Composable
 fun ProfileScreen(
     authRepository: AuthRepository,
-    onNavigateToMyListings: () -> Unit = {}
+    onNavigateToMyListings: () -> Unit = {},
+    // this looks contrive // you should probably import it,
+    // or is this how you call for a singleton WAIT THIS IS A type.
     appContainer: com.example.tinycell.di.AppContainer
 ) {
     val viewModel: ProfileViewModel = viewModel(

@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
                         navController = navController,
                         listingRepository = appContainer.listingRepository,
                         authRepository = appContainer.authRepository,
-                        chatRepository = appContainer.chatRepository
+                        chatRepository = appContainer.chatRepository,
                         appContainer = appContainer //  what is app container?
                     )
                 }
