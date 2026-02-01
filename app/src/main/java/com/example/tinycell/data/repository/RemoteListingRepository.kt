@@ -1,6 +1,7 @@
 package com.example.tinycell.data.repository
 
 import com.example.tinycell.data.remote.model.ListingDto
+import com.example.tinycell.data.remote.model.OfferDto
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -33,4 +34,11 @@ interface RemoteListingRepository {
      * Fetches a single listing by ID.
      */
     suspend fun getListingById(id: String): ListingDto?
+
+    /**
+     * [PHASE 6]: Offer System - Cloud Operations
+     */
+    suspend fun sendOffer(offer: OfferDto): Result<Unit>
+    suspend fun updateOfferStatus(offerId: String, status: String): Result<Unit>
+    fun getOffersForListing(listingId: String): Flow<List<OfferDto>>
 }
