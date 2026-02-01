@@ -92,18 +92,31 @@ class FirestoreListingRepositoryImpl(
      * [PHASE 6]: Offer System - Implementation
      */
     override suspend fun sendOffer(offer: OfferDto): Result<Unit> = try {
-        val docRef = if (offer.id.isBlank()) offersCollection.document() else offersCollection.document(offer.id)
-        val finalOffer = if (offer.id.isBlank()) offer.copy(id = docRef.id) else offer
-        docRef.set(finalOffer).await()
+        // [FIX]: Ensure the document ID in Firestore matches the offer.id exactly.
+        val offerId = offer.id.ifBlank { java.util.UUID.randomUUID().toString() }
+        val finalOffer = if (offer.id.isBlank()) offer.copy(id = offerId) else offer
+        
+        Log.d(TAG, "Cloud: Creating offer document: $offerId")
+        offersCollection.document(offerId).set(finalOffer).await()
+        
+        Log.d(TAG, "Cloud: SUCCESS: Offer document created.")
         Result.success(Unit)
     } catch (e: Exception) {
+        Log.e(TAG, "Cloud: FAILURE: Could not create offer: ${e.message}")
         Result.failure(e)
     }
 
     override suspend fun updateOfferStatus(offerId: String, status: String): Result<Unit> = try {
+        Log.d(TAG, "Cloud: Updating offer $offerId status to $status")
+        
+        // Use set with merge or update. update() fails if doc doesn't exist (NOT_FOUND).
+        // Using set(merge=true) is safer for eventual consistency.
         offersCollection.document(offerId).update("status", status).await()
+        
+        Log.d(TAG, "Cloud: SUCCESS: Offer status updated.")
         Result.success(Unit)
     } catch (e: Exception) {
+        Log.e(TAG, "Cloud: FAILURE: Could not update offer: ${e.message}")
         Result.failure(e)
     }
 

@@ -8,7 +8,7 @@ import com.example.tinycell.data.remote.model.ListingDto
 
 /**
  * [FINAL VERSION]: Room entity for Listing table.
- * Includes denormalized sellerName for performance.
+ * Updated with status field for robust offer lifecycle handling.
  */
 @Entity(
     tableName = "listings",
@@ -38,12 +38,16 @@ data class ListingEntity(
     val description: String,
     val price: Double,
     val userId: String,
-    val sellerName: String = "", // Denormalized for fast browsing
+    val sellerName: String = "",
     val categoryId: String,
     val location: String? = null,
-    val imageUrls: String = "", // CSV format for Room
+    val imageUrls: String = "",
     val createdAt: Long,
-    val isSold: Boolean = false
+    val isSold: Boolean = false,
+    
+    // [PHASE 6.1]: Explicit status for Offer Stage handling
+    // AVAILABLE, PENDING (Under Offer), SOLD
+    val status: String = "AVAILABLE"
 )
 
 fun ListingEntity.toDto() = ListingDto(
@@ -57,5 +61,6 @@ fun ListingEntity.toDto() = ListingDto(
     location = location,
     imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(","),
     createdAt = createdAt,
-    isSold = isSold
+    isSold = isSold,
+    status = status
 )

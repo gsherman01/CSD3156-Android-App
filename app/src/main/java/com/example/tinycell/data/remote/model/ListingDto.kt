@@ -5,7 +5,7 @@ import com.google.firebase.firestore.PropertyName
 
 /**
  * [FINAL VERSION]: Data Transfer Object for Firestore listings.
- * Updated with PropertyName annotations to ensure Boolean compatibility.
+ * Updated with 'status' for robust offer lifecycle handling.
  */
 data class ListingDto(
     @get:PropertyName("id") @set:PropertyName("id")
@@ -38,9 +38,11 @@ data class ListingDto(
     @get:PropertyName("createdAt") @set:PropertyName("createdAt")
     var createdAt: Long = System.currentTimeMillis(),
 
-    // [TODO_COMPATIBILITY]: Ensure SQL 'isSold' (Int 0/1) matches Firestore Boolean
     @get:PropertyName("isSold") @set:PropertyName("isSold")
-    var isSold: Boolean = false
+    var isSold: Boolean = false,
+
+    @get:PropertyName("status") @set:PropertyName("status")
+    var status: String = "AVAILABLE"
 )
 
 fun ListingDto.toEntity() = ListingEntity(
@@ -54,5 +56,6 @@ fun ListingDto.toEntity() = ListingEntity(
     location = location,
     imageUrls = imageUrls.joinToString(","),
     createdAt = createdAt,
-    isSold = isSold
+    isSold = isSold,
+    status = status
 )

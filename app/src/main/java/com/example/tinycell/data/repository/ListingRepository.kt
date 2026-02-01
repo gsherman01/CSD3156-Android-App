@@ -32,13 +32,14 @@ class ListingRepository(
 
     /**
      * [OFFER_SYSTEM]: Make a new formal offer.
+     * [FIX]: Added id parameter to ensure consistency with Chat messages.
      */
-    suspend fun makeOffer(listingId: String, amount: Double) = withContext(Dispatchers.IO) {
+    suspend fun makeOffer(listingId: String, amount: Double, offerId: String = java.util.UUID.randomUUID().toString()) = withContext(Dispatchers.IO) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val listing = listingDao.getListingById(listingId) ?: return@withContext
         
         val offerDto = OfferDto(
-            id = java.util.UUID.randomUUID().toString(),
+            id = offerId,
             listingId = listingId,
             buyerId = currentUid,
             sellerId = listing.userId,
@@ -47,18 +48,28 @@ class ListingRepository(
             timestamp = System.currentTimeMillis()
         )
         
+        Log.d(TAG, "Making offer: $offerId for listing: $listingId")
         offerDao.insert(offerDto.toEntity())
+        
         remoteRepo.sendOffer(offerDto).onFailure {
             Log.e(TAG, "Failed to send offer to cloud: ${it.message}")
         }
     }
 
     suspend fun acceptOffer(offerId: String) = withContext(Dispatchers.IO) {
+        Log.d(TAG, "Attempting to accept offer: $offerId")
         offerDao.updateStatus(offerId, "ACCEPTED")
-        remoteRepo.updateOfferStatus(offerId, "ACCEPTED")
+        val result = remoteRepo.updateOfferStatus(offerId, "ACCEPTED")
         
-        val offer = offerDao.getOfferById(offerId)
-        offer?.let { listingDao.markAsSold(it.listingId) }
+        if (result.isSuccess) {
+            val offer = offerDao.getOfferById(offerId)
+            offer?.let { 
+                Log.d(TAG, "Offer accepted successfully. Marking listing ${it.listingId} as SOLD.")
+                listingDao.markAsSold(it.listingId) 
+            }
+        } else {
+            Log.e(TAG, "Remote accept failed: ${result.exceptionOrNull()?.message}")
+        }
     }
 
     suspend fun rejectOffer(offerId: String) = withContext(Dispatchers.IO) {

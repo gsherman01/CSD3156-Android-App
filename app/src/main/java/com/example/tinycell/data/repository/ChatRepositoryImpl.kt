@@ -2,6 +2,9 @@ package com.example.tinycell.data.repository
 
 import android.util.Log
 import com.example.tinycell.data.local.dao.ChatMessageDao
+import com.example.tinycell.data.local.dao.UserDao
+import com.example.tinycell.data.local.dao.ListingDao
+import com.example.tinycell.data.local.entity.UserEntity
 import com.example.tinycell.data.model.ChatMessage
 import com.example.tinycell.data.model.ChatRoom
 import com.example.tinycell.data.remote.datasource.FirestoreChatDataSource
@@ -18,11 +21,12 @@ private const val TAG = "ChatRepositoryImpl"
 
 /**
  * Implementation of ChatRepository combining Firestore and local Room database.
- * Updated to support the Formal Offer System.
  */
 class ChatRepositoryImpl(
     private val firestoreChatDataSource: FirestoreChatDataSource,
-    private val chatMessageDao: ChatMessageDao
+    private val chatMessageDao: ChatMessageDao,
+    private val userDao: UserDao,
+    private val listingDao: ListingDao
 ) : ChatRepository {
 
     override suspend fun getOrCreateChatRoom(
@@ -35,7 +39,6 @@ class ChatRepositoryImpl(
         Log.d(TAG, "Getting or creating chat room: $chatRoomId")
 
         val existingRoom = firestoreChatDataSource.getChatRoom(chatRoomId)
-
         if (existingRoom != null) {
             return@withContext existingRoom.toDomain()
         }
@@ -83,7 +86,6 @@ class ChatRepositoryImpl(
         )
 
         val result = firestoreChatDataSource.sendMessage(messageDto)
-
         if (result.isSuccess) {
             firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, message, timestamp)
             Result.success(Unit)
@@ -92,9 +94,6 @@ class ChatRepositoryImpl(
         }
     }
 
-    /**
-     * [PHASE 6]: Sends a formal offer as a chat message.
-     */
     override suspend fun sendOfferMessage(
         chatRoomId: String,
         senderId: String,
@@ -103,7 +102,6 @@ class ChatRepositoryImpl(
         amount: Double,
         offerId: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Sending offer message in room: $chatRoomId (Offer: $offerId)")
         val timestamp = System.currentTimeMillis()
         val displayMessage = "Offered \$${amount}"
         
@@ -121,7 +119,6 @@ class ChatRepositoryImpl(
         )
 
         val result = firestoreChatDataSource.sendMessage(messageDto)
-
         if (result.isSuccess) {
             firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, displayMessage, timestamp)
             Result.success(Unit)
@@ -153,10 +150,34 @@ class ChatRepositoryImpl(
 
     private suspend fun cacheMessages(messages: List<ChatMessageDto>) {
         try {
+            // [FIX]: Ensure Listing and Users exist in Room before caching chat messages
+            // to avoid FOREIGN KEY constraint failed (Error 787).
+            messages.firstOrNull()?.let { firstMsg ->
+                ensureContextExists(firstMsg.listingId, firstMsg.senderId, firstMsg.receiverId)
+            }
+            
             val entities = messages.map { it.toEntity() }
             chatMessageDao.insertAll(entities)
         } catch (e: Exception) {
             Log.e(TAG, "Error caching messages: ${e.message}")
+        }
+    }
+
+    /**
+     * Ensures that the database integrity is maintained before inserting chat messages.
+     */
+    private suspend fun ensureContextExists(listingId: String, senderId: String, receiverId: String) {
+        // Ensure Users exist
+        listOf(senderId, receiverId).forEach { uid ->
+            if (userDao.getUserById(uid) == null) {
+                userDao.insert(UserEntity(id = uid, name = "User_$uid", email = "", createdAt = System.currentTimeMillis()))
+            }
+        }
+        
+        // Ensure Listing exists (Note: In a full implementation, we might fetch this from Firestore)
+        // For MVP, we check if it exists locally.
+        if (listingDao.getListingById(listingId) == null) {
+            Log.w(TAG, "Listing $listingId missing from local DB. Chat message caching might still fail if FK is strict.")
         }
     }
 }

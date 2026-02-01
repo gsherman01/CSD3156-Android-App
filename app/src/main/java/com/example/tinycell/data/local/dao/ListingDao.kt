@@ -15,7 +15,7 @@ import com.example.tinycell.data.local.entity.UserEntity
 
 /**
  * Data Access Object for Listing table.
- * Updated to support paginated/batched loading.
+ * Updated to support robust offer lifecycle handling.
  */
 @Dao
 interface ListingDao {
@@ -29,9 +29,6 @@ interface ListingDao {
     @Query("SELECT * FROM listings ORDER BY createdAt DESC")
     fun getAllListings(): Flow<List<ListingEntity>>
 
-    /**
-     * [PAGINATION_SUPPORT]: Get a batch of listings older than a specific timestamp.
-     */
     @Query("""
         SELECT * FROM listings 
         WHERE isSold = 0 AND createdAt < :lastTimestamp 
@@ -66,7 +63,13 @@ interface ListingDao {
     @Update
     suspend fun update(listing: ListingEntity)
 
-    @Query("UPDATE listings SET isSold = 1 WHERE id = :listingId")
+    /**
+     * [PHASE 6.1]: Update listing status (AVAILABLE, PENDING, SOLD).
+     */
+    @Query("UPDATE listings SET status = :status, isSold = :isSold WHERE id = :listingId")
+    suspend fun updateStatus(listingId: String, status: String, isSold: Boolean)
+
+    @Query("UPDATE listings SET isSold = 1, status = 'SOLD' WHERE id = :listingId")
     suspend fun markAsSold(listingId: String)
 
     @Delete

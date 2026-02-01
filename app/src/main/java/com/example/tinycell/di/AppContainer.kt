@@ -77,7 +77,9 @@ class AppContainer(private val context: Context) {
         Log.d(TAG, "Creating ChatRepository")
         ChatRepositoryImpl(
             firestoreChatDataSource,
-            database.chatMessageDao()
+            database.chatMessageDao(),
+            database.userDao(),    // [FIX]: Added missing dependency
+            database.listingDao()  // [FIX]: Added missing dependency
         )
     }
 

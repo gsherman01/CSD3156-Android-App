@@ -2,24 +2,43 @@ package com.example.tinycell.data.remote.model
 
 import com.example.tinycell.data.local.entity.ChatMessageEntity
 import com.example.tinycell.data.model.ChatMessage
+import com.google.firebase.firestore.PropertyName
 
 /**
  * Data Transfer Object for Firestore chat messages.
- * Updated to support the Formal Offer System.
+ * Updated with PropertyName annotations to handle Boolean naming mismatches.
  */
 data class ChatMessageDto(
-    val id: String = "",
-    val chatRoomId: String = "",
-    val senderId: String = "",
-    val receiverId: String = "",
-    val listingId: String = "",
-    val message: String = "",
-    val timestamp: Long = System.currentTimeMillis(),
-    val isRead: Boolean = false,
+    @get:PropertyName("id") @set:PropertyName("id")
+    var id: String = "",
     
-    // [PHASE 6]: Formal Offer integration
-    val offerId: String? = null,
-    val messageType: String = "TEXT" // TEXT, OFFER
+    @get:PropertyName("chatRoomId") @set:PropertyName("chatRoomId")
+    var chatRoomId: String = "",
+    
+    @get:PropertyName("senderId") @set:PropertyName("senderId")
+    var senderId: String = "",
+    
+    @get:PropertyName("receiverId") @set:PropertyName("receiverId")
+    var receiverId: String = "",
+    
+    @get:PropertyName("listingId") @set:PropertyName("listingId")
+    var listingId: String = "",
+    
+    @get:PropertyName("message") @set:PropertyName("message")
+    var message: String = "",
+    
+    @get:PropertyName("timestamp") @set:PropertyName("timestamp")
+    var timestamp: Long = System.currentTimeMillis(),
+    
+    // [FIX]: Explicitly map 'read' from Firestore to 'isRead' in Kotlin
+    @get:PropertyName("read") @set:PropertyName("read")
+    var isRead: Boolean = false,
+    
+    @get:PropertyName("offerId") @set:PropertyName("offerId")
+    var offerId: String? = null,
+    
+    @get:PropertyName("messageType") @set:PropertyName("messageType")
+    var messageType: String = "TEXT"
 )
 
 fun ChatMessageDto.toEntity() = ChatMessageEntity(
