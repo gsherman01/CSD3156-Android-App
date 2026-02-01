@@ -5,20 +5,24 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * [PHASE 3]: Unified Remote Listing Repository.
- * This is the single contract for all Cloud Firestore operations.
  */
 interface RemoteListingRepository {
     /**
-     * [LEARNING_POINT: REAL-TIME FLOW]
      * Streams updates. UI observes this for instant changes.
      */
     fun getRemoteListings(): Flow<List<ListingDto>>
 
     /**
-     * [LEARNING_POINT: ONE-SHOT FETCH]
      * Used by ListingRepository.syncFromRemote() to hydrate local Room.
      */
     suspend fun fetchListings(): List<ListingDto>
+
+    /**
+     * [PAGINATION_SUPPORT]: Fetches a batch of listings from Firestore.
+     * @param pageSize Number of items to fetch.
+     * @param lastTimestamp Timestamp of the last item in the previous batch (for cursor).
+     */
+    suspend fun fetchListingsBatch(pageSize: Int, lastTimestamp: Long?): List<ListingDto>
 
     /**
      * Pushes a new listing to Firestore.

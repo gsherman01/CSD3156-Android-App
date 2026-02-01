@@ -16,7 +16,7 @@ private const val TAG = "ListingRepository"
 
 /**
  * [FINAL VERSION]: Updated ListingRepository.
- * Includes all necessary CRUD operations and SQL 787 safety checks.
+ * Includes Pagination and Real-time sync support.
  */
 class ListingRepository(
     private val listingDao: ListingDao,
@@ -27,13 +27,62 @@ class ListingRepository(
 ) {
 
     /**
-     * Ensures any user referenced in remote listings exists locally to avoid FK errors.
+     * Observable Flows for UI - Traditional full list
      */
+    val allListings: Flow<List<Listing>> = listingDao.getAllListings()
+        .map { entities -> entities.map { it.toListing() } }
+
+    val activeListings: Flow<List<Listing>> = listingDao.getActiveListings()
+        .map { entities -> entities.map { it.toListing() } }
+
+    /**
+     * [PAGINATION_SUPPORT]: Observes a specific window of data from Room.
+     */
+    fun getActiveListingsPaged(lastTimestamp: Long, pageSize: Int): Flow<List<Listing>> {
+        return listingDao.getActiveListingsBatch(lastTimestamp, pageSize)
+            .map { entities -> entities.map { it.toListing() } }
+    }
+
+    /**
+     * [PAGINATION_SUPPORT]: Triggers a background fetch for a batch of data from Firestore.
+     */
+    suspend fun syncBatchFromRemote(pageSize: Int, lastTimestamp: Long?) = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Syncing batch from remote. LastTimestamp: $lastTimestamp")
+            val remoteListings = remoteRepo.fetchListingsBatch(pageSize, lastTimestamp)
+            
+            // Sync users referenced in listings to satisfy Foreign Keys
+            remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) ->
+                ensureUserExistsLocally(uid, name)
+            }
+
+            // Convert and Insert into Room
+            val entities = remoteListings.map { dto ->
+                ListingEntity(
+                    id = dto.id,
+                    title = dto.title,
+                    description = dto.description,
+                    price = dto.price,
+                    userId = dto.userId,
+                    sellerName = dto.sellerName,
+                    categoryId = dto.categoryId,
+                    location = dto.location,
+                    imageUrls = dto.imageUrls.joinToString(","),
+                    createdAt = dto.createdAt,
+                    isSold = dto.isSold
+                )
+            }
+            listingDao.insertAll(entities)
+            Log.d(TAG, "Batch sync completed. Inserted ${entities.size} items.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Batch sync failed: ${e.message}")
+        }
+    }
+
     suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "DEBUG: Starting remote sync...")
+            Log.d(TAG, "DEBUG: Starting full remote sync...")
             val remoteListings = remoteRepo.fetchListings()
-            Log.d(TAG, "DEBUG: Received ${remoteListings.size} listings from remote")
             
             remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) ->
                 ensureUserExistsLocally(uid, name)
@@ -55,41 +104,18 @@ class ListingRepository(
                 )
             }
             listingDao.insertAll(entities)
-            Log.d(TAG, "DEBUG: Sync completed, Room database updated.")
+            Log.d(TAG, "DEBUG: Sync completed.")
         } catch (e: Exception) {
             Log.e(TAG, "DEBUG: Sync failed: ${e.message}")
         }
     }
 
-    /**
-     * Observable Flows for UI
-     */
-    val allListings: Flow<List<Listing>> = listingDao.getAllListings()
-        .map { entities -> entities.map { it.toListing() } }
-
-    val activeListings: Flow<List<Listing>> = listingDao.getActiveListings()
-        .map { entities -> entities.map { it.toListing() } }
-
-    /**
-     * Single Fetch Operations
-     */
-    suspend fun getListingById(id: String): Listing? {
-        return listingDao.getListingById(id)?.toListing()
-    }
-
-    /**
-     * [PHASE 4/5]: Dual Write Logic
-     */
     suspend fun createListing(entity: ListingEntity) = withContext(Dispatchers.IO) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
         
-        Log.d(TAG, "DEBUG: Creating listing for user $currentUid")
         ensureUserExistsLocally(currentUid, currentName)
-
         val secureEntity = entity.copy(userId = currentUid, sellerName = currentName)
-        
-        Log.d(TAG, "DEBUG: Writing to local Room database...")
         listingDao.insert(secureEntity)
 
         try {
@@ -97,31 +123,40 @@ class ListingRepository(
             var finalEntity = secureEntity
 
             if (localPaths.isNotEmpty()) {
-                Log.d(TAG, "DEBUG: Uploading images (${localPaths.size})...")
                 val uploadResult = imageRepo.uploadImages(localPaths)
                 val remoteUrls = uploadResult.getOrThrow()
                 finalEntity = secureEntity.copy(imageUrls = remoteUrls.joinToString(","))
-
-                Log.d(TAG, "DEBUG: Updating Room with remote image URLs")
                 listingDao.update(finalEntity)
             }
 
-            Log.d(TAG, "DEBUG: Uploading listing to Firestore...")
             remoteRepo.uploadListing(finalEntity.toDto()).getOrThrow()
-            Log.d(TAG, "DEBUG: SUCCESS: Listing is now on Firestore.")
-            
         } catch (e: Exception) {
-            Log.e(TAG, "DEBUG: Remote write failed: ${e.message}. Listing remains in local Room.")
+            Log.e(TAG, "Remote write failed: ${e.message}")
         }
     }
 
     /**
-     * UPDATED: Now updates existing users if their info has changed on the server.
+     * Helper to create a listing from UI parameters.
      */
+    suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>) {
+        val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
+        val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
+        val newListing = Listing(
+            id = java.util.UUID.randomUUID().toString(),
+            title = title,
+            price = price,
+            category = category.ifBlank { "General" },
+            sellerId = currentUid,
+            sellerName = currentName,
+            description = description,
+            imageUrl = imagePaths.joinToString(",")
+        )
+        createListing(newListing.toEntity(currentUid, currentName))
+    }
+
     private suspend fun ensureUserExistsLocally(uid: String, name: String) {
         val existingUser = userDao.getUserById(uid)
         if (existingUser == null) {
-            Log.d(TAG, "Sync: Adding new user $uid ($name)")
             userDao.insert(UserEntity(
                 id = uid,
                 name = name.ifBlank { "User_$uid" },
@@ -129,26 +164,23 @@ class ListingRepository(
                 createdAt = System.currentTimeMillis()
             ))
         } else if (existingUser.name != name && name.isNotBlank()) {
-            Log.d(TAG, "Sync: Updating existing user name for $uid to $name")
-            userDao.insert(existingUser.copy(name = name)) // OnConflictStrategy.REPLACE handles the update
+            userDao.insert(existingUser.copy(name = name))
         }
     }
 
-    /**
-     * Filtering & Search
-     */
+    suspend fun getListingById(id: String): Listing? = listingDao.getListingById(id)?.toListing()
+
     fun getListingsByCategory(categoryId: String) = listingDao.getListingsByCategory(categoryId)
         .map { entities -> entities.map { it.toListing() } }
 
-    fun getListingsByUser(userId: String) = listingDao.getListingsByUser(userId)
-        .map { entities -> entities.map { it.toListing() } }
-
-    fun searchListings(query: String) = listingDao.searchListings(query)
-        .map { entities -> entities.map { it.toListing() } }
-
     /**
-     * Advanced search with multiple filters
+     * Get listings for a specific user.
      */
+    fun getListingsByUser(userId: String): Flow<List<Listing>> {
+        return listingDao.getListingsByUser(userId)
+            .map { entities -> entities.map { it.toListing() } }
+    }
+
     fun searchWithFilters(
         query: String,
         categoryIds: List<String>,
@@ -166,33 +198,9 @@ class ListingRepository(
         maxDate = maxDate
     ).map { entities -> entities.map { it.toListing() } }
 
-    /**
-     * Get all categories for filter UI
-     */
     suspend fun getAllCategories() = listingDao.getAllCategories()
-
-    /**
-     * Standard CRUD
-     */
     suspend fun markListingAsSold(listingId: String) = listingDao.markAsSold(listingId)
-
     suspend fun deleteListing(listing: Listing) = listingDao.delete(listing.toEntity())
-
-    suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>) {
-        val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
-        val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
-        val newListing = Listing(
-            id = java.util.UUID.randomUUID().toString(),
-            title = title,
-            price = price,
-            category = category.ifBlank { "General" },
-            sellerId = currentUid,
-            sellerName = currentName,
-            description = description,
-            imageUrl = imagePaths.joinToString(",")
-        )
-        createListing(newListing.toEntity(currentUid, currentName))
-    }
 }
 
 /**
