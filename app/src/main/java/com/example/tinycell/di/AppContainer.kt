@@ -10,8 +10,9 @@ import com.example.tinycell.data.repository.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 private const val TAG = "AppContainer"
@@ -20,6 +21,9 @@ private const val TAG = "AppContainer"
  * Dependency Injection Container.
  */
 class AppContainer(private val context: Context) {
+
+    // Application-level coroutine scope for background sync
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     init {
         Log.d(TAG, "Initializing AppContainer...")
@@ -57,6 +61,7 @@ class AppContainer(private val context: Context) {
         ListingRepository(
             database.listingDao(),
             database.userDao(),
+            database.offerDao(),
             remoteListingRepository,
             remoteImageRepository,
             authRepository
@@ -82,8 +87,7 @@ class AppContainer(private val context: Context) {
     }
 
     fun initializeData() {
-        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-        GlobalScope.launch(Dispatchers.IO) {
+        applicationScope.launch(Dispatchers.IO) {
             try {
                 Log.d(TAG, "DEBUG: initializeData: Starting background tasks")
                 authRepository.signInAnonymously()
@@ -91,6 +95,10 @@ class AppContainer(private val context: Context) {
                 
                 seedDatabase()
                 Log.d(TAG, "DEBUG: initializeData: Database seeded")
+                
+                // [PHASE 6]: Start the Real-Time Sync Bridge
+                // This ensures Room matches Firestore automatically for interactive data.
+                listingRepository.startRealTimeSync(applicationScope)
                 
                 performRemoteSync()
                 Log.d(TAG, "DEBUG: initializeData: Remote sync triggered")
@@ -132,7 +140,6 @@ class AppContainer(private val context: Context) {
 
     /**
      * Generate sample listings for debugging.
-     * Updated: Now uses the Repository to ensure samples are sent to Firestore.
      */
     suspend fun generateSampleListings(count: Int = 5) {
         try {
@@ -162,13 +169,12 @@ class AppContainer(private val context: Context) {
                     sellerName = userName,
                     categoryId = sample.third,
                     location = "Cloud Sync Test",
-                    imageUrls = "", // Empty for samples
+                    imageUrls = "",
                     createdAt = currentTime - (index * 60000),
                     isSold = false
                 )
                 
                 Log.d(TAG, "DEBUG: Pushing sample #$index to Repository (Dual-Write)...")
-                // Use the repository instead of the DAO to trigger the Firestore upload
                 listingRepository.createListing(listingEntity)
             }
 

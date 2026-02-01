@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.tinycell.data.local.entity.CategoryEntity
 import com.example.tinycell.data.model.Listing
 import com.example.tinycell.data.repository.ListingRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -51,6 +52,7 @@ class HomeViewModel(private val repository: ListingRepository) : ViewModel() {
      * Listings filtered based on current search and filter criteria.
      * Reactively updates when filters change.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val listings: Flow<List<Listing>> = _searchFilters.flatMapLatest { filters ->
         repository.searchWithFilters(
             query = if (filters.query.isBlank()) "%" else filters.query,

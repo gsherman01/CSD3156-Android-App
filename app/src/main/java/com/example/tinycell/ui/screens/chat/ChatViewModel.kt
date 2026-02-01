@@ -6,10 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.tinycell.data.model.ChatMessage
 import com.example.tinycell.data.repository.ChatRepository
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
+import com.example.tinycell.data.repository.ListingRepository
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 private const val TAG = "ChatViewModel"
@@ -20,14 +18,18 @@ private const val TAG = "ChatViewModel"
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val showOfferDialog: Boolean = false,
+    val isSeller: Boolean = false
 )
 
 /**
  * ViewModel for Chat Screen
+ * Updated to support the Formal Offer System.
  */
 class ChatViewModel(
     private val chatRepository: ChatRepository,
+    private val listingRepository: ListingRepository,
     private val chatRoomId: String,
     private val listingId: String,
     private val currentUserId: String,
@@ -40,10 +42,21 @@ class ChatViewModel(
     private val _messageText = MutableStateFlow("")
     val messageText: StateFlow<String> = _messageText.asStateFlow()
 
+    private val _offerAmount = MutableStateFlow("")
+    val offerAmount: StateFlow<String> = _offerAmount.asStateFlow()
+
     init {
         Log.d(TAG, "Initializing ChatViewModel for room: $chatRoomId")
+        checkIfSeller()
         loadMessages()
         markMessagesAsRead()
+    }
+
+    private fun checkIfSeller() {
+        viewModelScope.launch {
+            val listing = listingRepository.getListingById(listingId)
+            _uiState.update { it.copy(isSeller = listing?.sellerId == currentUserId) }
+        }
     }
 
     private fun loadMessages() {
@@ -51,19 +64,10 @@ class ChatViewModel(
             chatRepository.getMessagesFlow(chatRoomId)
                 .catch { e ->
                     Log.e(TAG, "Error loading messages: ${e.message}")
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "Failed to load messages: ${e.message}"
-                    )
+                    _uiState.update { it.copy(isLoading = false, error = "Failed to load messages") }
                 }
                 .collect { messages ->
-                    Log.d(TAG, "Received ${messages.size} messages")
-                    _uiState.value = _uiState.value.copy(
-                        messages = messages,
-                        isLoading = false,
-                        error = null
-                    )
-                    // Mark new messages as read
+                    _uiState.update { it.copy(messages = messages, isLoading = false, error = null) }
                     markMessagesAsRead()
                 }
         }
@@ -79,43 +83,74 @@ class ChatViewModel(
         }
     }
 
-    fun onMessageTextChanged(text: String) {
-        _messageText.value = text
-    }
+    fun onMessageTextChanged(text: String) { _messageText.value = text }
+    fun onOfferAmountChanged(amount: String) { _offerAmount.value = amount }
 
     fun sendMessage() {
         val text = _messageText.value.trim()
-        if (text.isEmpty()) {
-            Log.d(TAG, "Cannot send empty message")
-            return
-        }
+        if (text.isEmpty()) return
 
         viewModelScope.launch {
-            Log.d(TAG, "Sending message: $text")
-            _messageText.value = "" // Clear input immediately for better UX
+            _messageText.value = ""
+            val result = chatRepository.sendMessage(chatRoomId, currentUserId, otherUserId, listingId, text)
+            if (result.isFailure) _uiState.update { it.copy(error = "Failed to send message") }
+        }
+    }
 
-            val result = chatRepository.sendMessage(
-                chatRoomId = chatRoomId,
-                senderId = currentUserId,
-                receiverId = otherUserId,
-                listingId = listingId,
-                message = text
-            )
-
-            if (result.isFailure) {
-                Log.e(TAG, "Failed to send message: ${result.exceptionOrNull()?.message}")
-                _uiState.value = _uiState.value.copy(
-                    error = "Failed to send message"
+    /**
+     * [PHASE 6]: Sends a formal offer and a corresponding chat message card.
+     */
+    fun sendOffer() {
+        val amount = _offerAmount.value.toDoubleOrNull() ?: return
+        viewModelScope.launch {
+            try {
+                // 1. Create the offer record
+                val offerId = java.util.UUID.randomUUID().toString()
+                listingRepository.makeOffer(listingId, amount)
+                
+                // 2. Send the interactive chat card
+                chatRepository.sendOfferMessage(
+                    chatRoomId = chatRoomId,
+                    senderId = currentUserId,
+                    receiverId = otherUserId,
+                    listingId = listingId,
+                    amount = amount,
+                    offerId = offerId
                 )
-                // Restore message text on failure
-                _messageText.value = text
+                
+                _offerAmount.value = ""
+                toggleOfferDialog(false)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Failed to send offer") }
             }
         }
     }
 
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+    fun acceptOffer(offerId: String) {
+        viewModelScope.launch {
+            try {
+                listingRepository.acceptOffer(offerId)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Failed to accept offer") }
+            }
+        }
     }
+
+    fun rejectOffer(offerId: String) {
+        viewModelScope.launch {
+            try {
+                listingRepository.rejectOffer(offerId)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Failed to reject offer") }
+            }
+        }
+    }
+
+    fun toggleOfferDialog(show: Boolean) {
+        _uiState.update { it.copy(showOfferDialog = show) }
+    }
+
+    fun clearError() { _uiState.update { it.copy(error = null) } }
 }
 
 /**
@@ -123,23 +158,14 @@ class ChatViewModel(
  */
 class ChatViewModelFactory(
     private val chatRepository: ChatRepository,
+    private val listingRepository: ListingRepository,
     private val chatRoomId: String,
     private val listingId: String,
     private val currentUserId: String,
     private val otherUserId: String
 ) : ViewModelProvider.Factory {
-
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ChatViewModel::class.java)) {
-            return ChatViewModel(
-                chatRepository = chatRepository,
-                chatRoomId = chatRoomId,
-                listingId = listingId,
-                currentUserId = currentUserId,
-                otherUserId = otherUserId
-            ) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        return ChatViewModel(chatRepository, listingRepository, chatRoomId, listingId, currentUserId, otherUserId) as T
     }
 }

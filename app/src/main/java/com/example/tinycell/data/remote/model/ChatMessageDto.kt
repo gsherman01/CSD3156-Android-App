@@ -5,6 +5,7 @@ import com.example.tinycell.data.model.ChatMessage
 
 /**
  * Data Transfer Object for Firestore chat messages.
+ * Updated to support the Formal Offer System.
  */
 data class ChatMessageDto(
     val id: String = "",
@@ -14,7 +15,11 @@ data class ChatMessageDto(
     val listingId: String = "",
     val message: String = "",
     val timestamp: Long = System.currentTimeMillis(),
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    
+    // [PHASE 6]: Formal Offer integration
+    val offerId: String? = null,
+    val messageType: String = "TEXT" // TEXT, OFFER
 )
 
 fun ChatMessageDto.toEntity() = ChatMessageEntity(
@@ -25,7 +30,9 @@ fun ChatMessageDto.toEntity() = ChatMessageEntity(
     listingId = listingId,
     message = message,
     timestamp = timestamp,
-    isRead = isRead
+    isRead = isRead,
+    offerId = offerId,
+    messageType = messageType
 )
 
 fun ChatMessageEntity.toDto() = ChatMessageDto(
@@ -36,7 +43,9 @@ fun ChatMessageEntity.toDto() = ChatMessageDto(
     listingId = listingId,
     message = message,
     timestamp = timestamp,
-    isRead = isRead
+    isRead = isRead,
+    offerId = offerId,
+    messageType = messageType
 )
 
 fun ChatMessageDto.toDomain() = ChatMessage(
@@ -47,16 +56,7 @@ fun ChatMessageDto.toDomain() = ChatMessage(
     listingId = listingId,
     message = message,
     timestamp = timestamp,
-    isRead = isRead
-)
-
-fun ChatMessage.toDto() = ChatMessageDto(
-    id = id,
-    chatRoomId = chatRoomId,
-    senderId = senderId,
-    receiverId = receiverId,
-    listingId = listingId,
-    message = message,
-    timestamp = timestamp,
-    isRead = isRead
+    isRead = isRead,
+    offerId = offerId,
+    messageType = messageType
 )

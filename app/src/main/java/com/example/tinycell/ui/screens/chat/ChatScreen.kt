@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tinycell.data.model.ChatMessage
 import com.example.tinycell.data.repository.ChatRepository
+import com.example.tinycell.data.repository.ListingRepository
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,11 +37,13 @@ fun ChatScreen(
     otherUserName: String,
     currentUserId: String,
     chatRepository: ChatRepository,
+    listingRepository: ListingRepository, // [FIX]: Added missing repository
     onNavigateBack: () -> Unit
 ) {
     val viewModel: ChatViewModel = viewModel(
         factory = ChatViewModelFactory(
             chatRepository = chatRepository,
+            listingRepository = listingRepository, // [FIX]: Added missing repository
             chatRoomId = chatRoomId,
             listingId = listingId,
             currentUserId = currentUserId,

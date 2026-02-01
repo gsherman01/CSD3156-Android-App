@@ -7,10 +7,7 @@ import androidx.room.PrimaryKey
 
 /**
  * Room entity for ChatMessage table.
- *
- * Represents messages exchanged between users about a specific listing.
- * Multiple foreign keys to UserEntity handle sender and receiver.
- * Indices optimize queries for conversations and unread messages.
+ * Updated to support the Formal Offer System.
  */
 @Entity(
     tableName = "chat_messages",
@@ -45,18 +42,15 @@ import androidx.room.PrimaryKey
 data class ChatMessageEntity(
     @PrimaryKey
     val id: String,
-
     val chatRoomId: String,
-
     val senderId: String,
-
     val receiverId: String,
-
     val listingId: String,
-
     val message: String,
-
     val timestamp: Long,
-
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    
+    // [PHASE 6]: Formal Offer integration
+    val offerId: String? = null,
+    val messageType: String = "TEXT" // TEXT, OFFER
 )

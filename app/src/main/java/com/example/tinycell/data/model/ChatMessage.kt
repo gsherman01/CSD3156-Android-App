@@ -2,6 +2,7 @@ package com.example.tinycell.data.model
 
 /**
  * Domain model representing a chat message.
+ * Updated to support the Formal Offer System.
  */
 data class ChatMessage(
     val id: String,
@@ -11,5 +12,7 @@ data class ChatMessage(
     val listingId: String,
     val message: String,
     val timestamp: Long,
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val offerId: String? = null,
+    val messageType: String = "TEXT"
 )

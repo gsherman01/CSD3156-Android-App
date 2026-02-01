@@ -4,7 +4,9 @@ import android.util.Log
 import com.example.tinycell.data.local.dao.*
 import com.example.tinycell.data.local.entity.*
 import com.example.tinycell.data.model.Listing
+import com.example.tinycell.data.remote.model.ListingDto
 import com.example.tinycell.data.remote.model.OfferDto
+import com.example.tinycell.data.remote.model.toEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,7 +24,7 @@ private const val TAG = "ListingRepository"
 class ListingRepository(
     private val listingDao: ListingDao,
     private val userDao: UserDao,
-    private val offerDao: OfferDao, // Added OfferDao
+    private val offerDao: OfferDao,
     private val remoteRepo: RemoteListingRepository,
     private val imageRepo: RemoteImageRepository,
     private val authRepo: AuthRepository
@@ -45,10 +47,7 @@ class ListingRepository(
             timestamp = System.currentTimeMillis()
         )
         
-        // 1. Write to Local
         offerDao.insert(offerDto.toEntity())
-        
-        // 2. Push to Cloud
         remoteRepo.sendOffer(offerDto).onFailure {
             Log.e(TAG, "Failed to send offer to cloud: ${it.message}")
         }
@@ -58,7 +57,6 @@ class ListingRepository(
         offerDao.updateStatus(offerId, "ACCEPTED")
         remoteRepo.updateOfferStatus(offerId, "ACCEPTED")
         
-        // [BUSINESS_LOGIC]: When an offer is accepted, mark listing as sold
         val offer = offerDao.getOfferById(offerId)
         offer?.let { listingDao.markAsSold(it.listingId) }
     }
@@ -76,10 +74,14 @@ class ListingRepository(
     fun startRealTimeSync(scope: CoroutineScope) {
         scope.launch(Dispatchers.IO) {
             remoteRepo.getRemoteListings().collectLatest { remoteDtos ->
-                remoteDtos.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) ->
-                    ensureUserExistsLocally(uid, name)
+                try {
+                    remoteDtos.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) ->
+                        ensureUserExistsLocally(uid, name)
+                    }
+                    listingDao.insertAll(remoteDtos.map { it.toEntity() })
+                } catch (e: Exception) {
+                    Log.e(TAG, "Real-time sync error: ${e.message}")
                 }
-                listingDao.insertAll(remoteDtos.map { it.toEntity() })
             }
         }
     }
@@ -95,9 +97,23 @@ class ListingRepository(
     }
 
     suspend fun syncBatchFromRemote(pageSize: Int, lastTimestamp: Long?) = withContext(Dispatchers.IO) {
-        val remoteListings = remoteRepo.fetchListingsBatch(pageSize, lastTimestamp)
-        remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) -> ensureUserExistsLocally(uid, name) }
-        listingDao.insertAll(remoteListings.map { it.toEntity() })
+        try {
+            val remoteListings = remoteRepo.fetchListingsBatch(pageSize, lastTimestamp)
+            remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) -> ensureUserExistsLocally(uid, name) }
+            listingDao.insertAll(remoteListings.map { it.toEntity() })
+        } catch (e: Exception) {
+            Log.e(TAG, "Batch sync failed: ${e.message}")
+        }
+    }
+
+    suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
+        try {
+            val remoteListings = remoteRepo.fetchListings()
+            remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) -> ensureUserExistsLocally(uid, name) }
+            listingDao.insertAll(remoteListings.map { it.toEntity() })
+        } catch (e: Exception) {
+            Log.e(TAG, "Sync failed: ${e.message}")
+        }
     }
 
     suspend fun createListing(entity: ListingEntity) = withContext(Dispatchers.IO) {
@@ -141,9 +157,31 @@ class ListingRepository(
     fun getListingsByCategory(categoryId: String) = listingDao.getListingsByCategory(categoryId).map { entities -> entities.map { it.toListing() } }
     fun getListingsByUser(userId: String): Flow<List<Listing>> = listingDao.getListingsByUser(userId).map { entities -> entities.map { it.toListing() } }
 
+    /**
+     * Search listings with multiple filters.
+     */
+    fun searchWithFilters(
+        query: String,
+        categoryIds: List<String>,
+        minPrice: Double,
+        maxPrice: Double,
+        minDate: Long,
+        maxDate: Long
+    ): Flow<List<Listing>> {
+        return listingDao.searchWithFilters(
+            query = query,
+            categoryIds = categoryIds,
+            categoryIdsSize = categoryIds.size,
+            minPrice = minPrice,
+            maxPrice = maxPrice,
+            minDate = minDate,
+            maxDate = maxDate
+        ).map { entities -> entities.map { it.toListing() } }
+    }
+
     suspend fun getAllCategories() = listingDao.getAllCategories()
     suspend fun markListingAsSold(listingId: String) = listingDao.markAsSold(listingId)
-    suspend fun deleteListing(listing: Listing) = listingDao.delete(listing.toEntity())
+    suspend fun deleteListing(listing: Listing) = listingDao.delete(listing.toEntity(listing.sellerId, listing.sellerName))
 }
 
 /**
