@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.tinycell.data.remote.model.ListingDto
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -13,7 +14,7 @@ private const val TAG = "FirestoreRemote"
 
 /**
  * [PHASE 3]: Firestore Implementation of RemoteListingRepository.
- * Handles one-shot fetches, pagination, and real-time listeners.
+ * Optimized for real-time batched loading and sync strategy.
  */
 class FirestoreListingRepositoryImpl(
     private val firestore: FirebaseFirestore
@@ -27,8 +28,11 @@ class FirestoreListingRepositoryImpl(
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    // Check if a composite index is required
+                    if (error.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
+                        Log.e(TAG, "INDEX REQUIRED: Check Logcat for URL to create composite index.")
+                    }
                     Log.e(TAG, "Remote listener error: ${error.message}")
-                    close(error)
                     return@addSnapshotListener
                 }
 
@@ -65,7 +69,7 @@ class FirestoreListingRepositoryImpl(
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .limit(pageSize.toLong())
 
-            if (lastTimestamp != null) {
+            if (lastTimestamp != null && lastTimestamp > 0) {
                 query = query.startAfter(lastTimestamp)
             }
 
