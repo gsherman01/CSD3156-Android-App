@@ -118,7 +118,11 @@ fun CameraScreen() {
                         .padding(48.dp)
                         .size(80.dp)
                 ) {
-                    Icon(Icons.Default.Camera, contentDescription = "Capture", modifier = Modifier.fillMaxSize(0.5f))
+                    Icon(
+                        Icons.Default.Camera,
+                        contentDescription = "Capture",
+                        modifier = Modifier.fillMaxSize(0.5f)
+                    )
                 }
             }
         } else {
@@ -130,7 +134,9 @@ fun CameraScreen() {
     } else {
         // TODO: Show a UI explaining why the permission is needed with a button
         // TODO: Test if UI is too small
-        Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally ) {
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally ) {
             Text("Camera access is required to take photos for listings.")
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = { permissionLauncher.launch(android.Manifest.permission.CAMERA) }) {

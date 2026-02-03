@@ -1,11 +1,11 @@
 package com.example.tinycell.data.repository
 
 import com.example.tinycell.data.remote.model.ListingDto
-import com.example.tinycell.data.remote.model.OfferDto
 import kotlinx.coroutines.flow.Flow
 
 /**
  * [PHASE 3]: Unified Remote Listing Repository.
+ * Offer cloud operations have been moved to RemoteOfferRepository.
  */
 interface RemoteListingRepository {
     /**
@@ -36,9 +36,9 @@ interface RemoteListingRepository {
     suspend fun getListingById(id: String): ListingDto?
 
     /**
-     * [PHASE 6]: Offer System - Cloud Operations
+     * [PHASE 6]: Targeted status update on a listing document.
+     * Used by the Offer lifecycle to transition a listing to PENDING or SOLD
+     * without re-uploading the entire document.
      */
-    suspend fun sendOffer(offer: OfferDto): Result<Unit>
-    suspend fun updateOfferStatus(offerId: String, status: String): Result<Unit>
-    fun getOffersForListing(listingId: String): Flow<List<OfferDto>>
+    suspend fun updateListingStatus(listingId: String, status: String, isSold: Boolean): Result<Unit>
 }

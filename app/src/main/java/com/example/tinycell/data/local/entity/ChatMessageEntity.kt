@@ -52,5 +52,5 @@ data class ChatMessageEntity(
     
     // [PHASE 6]: Formal Offer integration
     val offerId: String? = null,
-    val messageType: String = "TEXT" // TEXT, OFFER
+    val messageType: String = "TEXT" // TEXT, OFFER, SYSTEM
 )

@@ -27,6 +27,6 @@ data class OfferEntity(
     val buyerId: String,
     val sellerId: String,
     val amount: Double,
-    val status: String, // PENDING, ACCEPTED, REJECTED
+    val status: String, // SENT, ACCEPTED, REJECTED
     val timestamp: Long
 )

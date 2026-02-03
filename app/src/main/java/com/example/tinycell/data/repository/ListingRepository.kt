@@ -5,7 +5,6 @@ import com.example.tinycell.data.local.dao.*
 import com.example.tinycell.data.local.entity.*
 import com.example.tinycell.data.model.Listing
 import com.example.tinycell.data.remote.model.ListingDto
-import com.example.tinycell.data.remote.model.OfferDto
 import com.example.tinycell.data.remote.model.toEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -19,65 +18,16 @@ private const val TAG = "ListingRepository"
 
 /**
  * [FINAL VERSION]: Updated ListingRepository.
- * Optimized for performance with Room SSOT, Pagination, and Formal Offers.
+ * Optimized for performance with Room SSOT and Pagination.
+ * Offer lifecycle operations have been moved to OfferRepository.
  */
 class ListingRepository(
     private val listingDao: ListingDao,
     private val userDao: UserDao,
-    private val offerDao: OfferDao,
     private val remoteRepo: RemoteListingRepository,
     private val imageRepo: RemoteImageRepository,
     private val authRepo: AuthRepository
 ) {
-
-    /**
-     * [OFFER_SYSTEM]: Make a new formal offer.
-     * [FIX]: Added id parameter to ensure consistency with Chat messages.
-     */
-    suspend fun makeOffer(listingId: String, amount: Double, offerId: String = java.util.UUID.randomUUID().toString()) = withContext(Dispatchers.IO) {
-        val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
-        val listing = listingDao.getListingById(listingId) ?: return@withContext
-        
-        val offerDto = OfferDto(
-            id = offerId,
-            listingId = listingId,
-            buyerId = currentUid,
-            sellerId = listing.userId,
-            amount = amount,
-            status = "PENDING",
-            timestamp = System.currentTimeMillis()
-        )
-        
-        Log.d(TAG, "Making offer: $offerId for listing: $listingId")
-        offerDao.insert(offerDto.toEntity())
-        
-        remoteRepo.sendOffer(offerDto).onFailure {
-            Log.e(TAG, "Failed to send offer to cloud: ${it.message}")
-        }
-    }
-
-    suspend fun acceptOffer(offerId: String) = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Attempting to accept offer: $offerId")
-        offerDao.updateStatus(offerId, "ACCEPTED")
-        val result = remoteRepo.updateOfferStatus(offerId, "ACCEPTED")
-        
-        if (result.isSuccess) {
-            val offer = offerDao.getOfferById(offerId)
-            offer?.let { 
-                Log.d(TAG, "Offer accepted successfully. Marking listing ${it.listingId} as SOLD.")
-                listingDao.markAsSold(it.listingId) 
-            }
-        } else {
-            Log.e(TAG, "Remote accept failed: ${result.exceptionOrNull()?.message}")
-        }
-    }
-
-    suspend fun rejectOffer(offerId: String) = withContext(Dispatchers.IO) {
-        offerDao.updateStatus(offerId, "REJECTED")
-        remoteRepo.updateOfferStatus(offerId, "REJECTED")
-    }
-
-    fun getOffersForListing(listingId: String): Flow<List<OfferEntity>> = offerDao.getOffersByListing(listingId)
 
     /**
      * [REAL_TIME_BRIDGE]: Automatically sinks Cloud updates into Room.
@@ -204,8 +154,4 @@ private fun ListingEntity.toListing() = Listing(
 
 private fun Listing.toEntity(uid: String, sName: String) = ListingEntity(
     id = id, title = title, description = description ?: "", price = price, userId = uid, sellerName = sName, categoryId = category, location = null, imageUrls = imageUrl ?: "", createdAt = System.currentTimeMillis(), isSold = false
-)
-
-private fun OfferDto.toEntity() = OfferEntity(
-    id = id, listingId = listingId, buyerId = buyerId, sellerId = sellerId, amount = amount, status = status, timestamp = timestamp
 )

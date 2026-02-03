@@ -28,6 +28,13 @@ interface OfferDao {
     @Query("UPDATE offers SET status = :status WHERE id = :offerId")
     suspend fun updateStatus(offerId: String, status: String)
 
+    /**
+     * Returns all offers for a listing that are still in SENT state.
+     * Used by rejectOffer to decide whether to revert listing status to AVAILABLE.
+     */
+    @Query("SELECT * FROM offers WHERE listingId = :listingId AND status = 'SENT'")
+    suspend fun getSentOffersByListing(listingId: String): List<OfferEntity>
+
     @Delete
     suspend fun delete(offer: OfferEntity)
 }

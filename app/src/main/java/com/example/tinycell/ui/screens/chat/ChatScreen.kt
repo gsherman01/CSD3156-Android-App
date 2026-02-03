@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tinycell.data.model.ChatMessage
 import com.example.tinycell.data.repository.ChatRepository
 import com.example.tinycell.data.repository.ListingRepository
+import com.example.tinycell.data.repository.OfferRepository
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -48,12 +49,14 @@ fun ChatScreen(
     currentUserId: String,
     chatRepository: ChatRepository,
     listingRepository: ListingRepository,
+    offerRepository: OfferRepository,
     onNavigateBack: () -> Unit
 ) {
     val viewModel: ChatViewModel = viewModel(
         factory = ChatViewModelFactory(
             chatRepository = chatRepository,
             listingRepository = listingRepository,
+            offerRepository = offerRepository,
             chatRoomId = chatRoomId,
             listingId = listingId,
             currentUserId = currentUserId,

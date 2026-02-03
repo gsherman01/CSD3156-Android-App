@@ -4,9 +4,11 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.tinycell.data.local.entity.OfferEntity
 import com.example.tinycell.data.model.ChatMessage
 import com.example.tinycell.data.repository.ChatRepository
 import com.example.tinycell.data.repository.ListingRepository
+import com.example.tinycell.data.repository.OfferRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -30,6 +32,7 @@ data class ChatUiState(
 class ChatViewModel(
     private val chatRepository: ChatRepository,
     private val listingRepository: ListingRepository,
+    private val offerRepository: OfferRepository,
     private val chatRoomId: String,
     private val listingId: String,
     private val currentUserId: String,
@@ -98,17 +101,35 @@ class ChatViewModel(
     }
 
     /**
-     * [PHASE 6]: Sends a formal offer and a corresponding chat message card.
+     * [PHASE 6]: Creates a formal offer via OfferRepository, then sends
+     * the interactive OFFER chat card (the card that surfaces Accept/Reject buttons).
+     * OfferRepository handles: Room persist, Firestore set(), listing → PENDING,
+     * and the SYSTEM "Offer sent" timeline event.
      */
     fun sendOffer() {
         val amount = _offerAmount.value.toDoubleOrNull() ?: return
         viewModelScope.launch {
             try {
-                // 1. Create the offer record
                 val offerId = java.util.UUID.randomUUID().toString()
-                listingRepository.makeOffer(listingId, amount)
-                
-                // 2. Send the interactive chat card
+
+                // 1. Full offer lifecycle (Room + Firestore + listing status + SYSTEM msg)
+                val offer = OfferEntity(
+                    id = offerId,
+                    listingId = listingId,
+                    buyerId = currentUserId,
+                    sellerId = otherUserId,
+                    amount = amount,
+                    status = "SENT",
+                    timestamp = System.currentTimeMillis()
+                )
+                val createResult = offerRepository.createOffer(offer)
+                if (createResult.isFailure) {
+                    Log.e(TAG, "createOffer failed: ${createResult.exceptionOrNull()?.message}")
+                    _uiState.update { it.copy(error = "Failed to create offer") }
+                    return@launch
+                }
+
+                // 2. Send the interactive OFFER card into the chat (Accept/Reject UI)
                 chatRepository.sendOfferMessage(
                     chatRoomId = chatRoomId,
                     senderId = currentUserId,
@@ -117,7 +138,7 @@ class ChatViewModel(
                     amount = amount,
                     offerId = offerId
                 )
-                
+
                 _offerAmount.value = ""
                 toggleOfferDialog(false)
             } catch (e: Exception) {
@@ -128,9 +149,9 @@ class ChatViewModel(
 
     fun acceptOffer(offerId: String) {
         viewModelScope.launch {
-            try {
-                listingRepository.acceptOffer(offerId)
-            } catch (e: Exception) {
+            val result = offerRepository.acceptOffer(offerId, listingId)
+            if (result.isFailure) {
+                Log.e(TAG, "acceptOffer failed: ${result.exceptionOrNull()?.message}")
                 _uiState.update { it.copy(error = "Failed to accept offer") }
             }
         }
@@ -138,9 +159,9 @@ class ChatViewModel(
 
     fun rejectOffer(offerId: String) {
         viewModelScope.launch {
-            try {
-                listingRepository.rejectOffer(offerId)
-            } catch (e: Exception) {
+            val result = offerRepository.rejectOffer(offerId)
+            if (result.isFailure) {
+                Log.e(TAG, "rejectOffer failed: ${result.exceptionOrNull()?.message}")
                 _uiState.update { it.copy(error = "Failed to reject offer") }
             }
         }
@@ -159,6 +180,7 @@ class ChatViewModel(
 class ChatViewModelFactory(
     private val chatRepository: ChatRepository,
     private val listingRepository: ListingRepository,
+    private val offerRepository: OfferRepository,
     private val chatRoomId: String,
     private val listingId: String,
     private val currentUserId: String,
@@ -166,6 +188,6 @@ class ChatViewModelFactory(
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ChatViewModel(chatRepository, listingRepository, chatRoomId, listingId, currentUserId, otherUserId) as T
+        return ChatViewModel(chatRepository, listingRepository, offerRepository, chatRoomId, listingId, currentUserId, otherUserId) as T
     }
 }

@@ -111,7 +111,8 @@ fun TinyCellNavHost(
                 otherUserName = otherUserName,
                 currentUserId = currentUserId,
                 chatRepository = chatRepository,
-                listingRepository = listingRepository, // [FIX]: Added missing dependency
+                listingRepository = listingRepository,
+                offerRepository = appContainer.offerRepository,
                 onNavigateBack = {
                     navController.popBackStack()
                 }

@@ -2,7 +2,6 @@ package com.example.tinycell.data.repository
 
 import android.util.Log
 import com.example.tinycell.data.remote.model.ListingDto
-import com.example.tinycell.data.remote.model.OfferDto
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -14,15 +13,14 @@ import kotlinx.coroutines.tasks.await
 private const val TAG = "FirestoreRemote"
 
 /**
- * [PHASE 3/6]: Firestore Implementation of RemoteListingRepository.
- * Handles listings and the formal offer system.
+ * [PHASE 3]: Firestore Implementation of RemoteListingRepository.
+ * Offer cloud operations have been extracted to FirestoreOfferRepositoryImpl.
  */
 class FirestoreListingRepositoryImpl(
     private val firestore: FirebaseFirestore
 ) : RemoteListingRepository {
 
     private val listingsCollection = firestore.collection("listings")
-    private val offersCollection = firestore.collection("offers")
 
     override fun getRemoteListings(): Flow<List<ListingDto>> = callbackFlow {
         val subscription = listingsCollection
@@ -89,49 +87,18 @@ class FirestoreListingRepositoryImpl(
     }
 
     /**
-     * [PHASE 6]: Offer System - Implementation
+     * [PHASE 6]: Targeted update of a listing's status and isSold flag.
+     * Avoids a full set() so that other fields written by other clients are not clobbered.
      */
-    override suspend fun sendOffer(offer: OfferDto): Result<Unit> = try {
-        // [FIX]: Ensure the document ID in Firestore matches the offer.id exactly.
-        val offerId = offer.id.ifBlank { java.util.UUID.randomUUID().toString() }
-        val finalOffer = if (offer.id.isBlank()) offer.copy(id = offerId) else offer
-        
-        Log.d(TAG, "Cloud: Creating offer document: $offerId")
-        offersCollection.document(offerId).set(finalOffer).await()
-        
-        Log.d(TAG, "Cloud: SUCCESS: Offer document created.")
+    override suspend fun updateListingStatus(listingId: String, status: String, isSold: Boolean): Result<Unit> = try {
+        Log.d(TAG, "Cloud: Updating listing $listingId -> status=$status, isSold=$isSold")
+        listingsCollection.document(listingId).update(
+            mapOf("status" to status, "isSold" to isSold)
+        ).await()
+        Log.d(TAG, "Cloud: SUCCESS: Listing status updated.")
         Result.success(Unit)
     } catch (e: Exception) {
-        Log.e(TAG, "Cloud: FAILURE: Could not create offer: ${e.message}")
+        Log.e(TAG, "Cloud: FAILURE: Could not update listing status: ${e.message}")
         Result.failure(e)
-    }
-
-    override suspend fun updateOfferStatus(offerId: String, status: String): Result<Unit> = try {
-        Log.d(TAG, "Cloud: Updating offer $offerId status to $status")
-        
-        // Use set with merge or update. update() fails if doc doesn't exist (NOT_FOUND).
-        // Using set(merge=true) is safer for eventual consistency.
-        offersCollection.document(offerId).update("status", status).await()
-        
-        Log.d(TAG, "Cloud: SUCCESS: Offer status updated.")
-        Result.success(Unit)
-    } catch (e: Exception) {
-        Log.e(TAG, "Cloud: FAILURE: Could not update offer: ${e.message}")
-        Result.failure(e)
-    }
-
-    override fun getOffersForListing(listingId: String): Flow<List<OfferDto>> = callbackFlow {
-        val subscription = offersCollection
-            .whereEqualTo("listingId", listingId)
-            .orderBy("timestamp", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
-                val items = snapshot?.toObjects(OfferDto::class.java) ?: emptyList()
-                trySend(items)
-            }
-        awaitClose { subscription.remove() }
     }
 }

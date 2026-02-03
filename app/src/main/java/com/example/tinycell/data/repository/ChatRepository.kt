@@ -38,6 +38,25 @@ interface ChatRepository {
         offerId: String
     ): Result<Unit>
 
+    /**
+     * [PHASE 6]: Inserts a SYSTEM-type message into both Room and Firestore.
+     * Used by OfferRepository to emit lifecycle timeline events
+     * ("Offer sent", "Offer accepted", "Offer rejected") without
+     * coupling the offer layer to UI state.
+     *
+     * @param senderId   The actor who triggered the event (satisfies the FK on users).
+     * @param receiverId The other party in the conversation.
+     * @param offerId    Optional link back to the offer for future filtering.
+     */
+    suspend fun sendSystemMessage(
+        chatRoomId: String,
+        senderId: String,
+        receiverId: String,
+        listingId: String,
+        message: String,
+        offerId: String? = null
+    ): Result<Unit>
+
     suspend fun markMessagesAsRead(chatRoomId: String, receiverId: String)
     fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>>
     fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int>

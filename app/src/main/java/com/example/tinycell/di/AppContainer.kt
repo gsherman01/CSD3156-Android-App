@@ -61,10 +61,25 @@ class AppContainer(private val context: Context) {
         ListingRepository(
             database.listingDao(),
             database.userDao(),
-            database.offerDao(),
             remoteListingRepository,
             remoteImageRepository,
             authRepository
+        )
+    }
+
+    val remoteOfferRepository: RemoteOfferRepository by lazy {
+        Log.d(TAG, "Creating RemoteOfferRepository")
+        FirestoreOfferRepositoryImpl(firestore)
+    }
+
+    val offerRepository: OfferRepository by lazy {
+        Log.d(TAG, "Creating OfferRepository")
+        OfferRepositoryImpl(
+            database.offerDao(),
+            database.listingDao(),
+            remoteOfferRepository,
+            remoteListingRepository,
+            chatRepository
         )
     }
 

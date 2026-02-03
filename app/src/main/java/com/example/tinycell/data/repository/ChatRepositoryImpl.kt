@@ -127,6 +127,37 @@ class ChatRepositoryImpl(
         }
     }
 
+    override suspend fun sendSystemMessage(
+        chatRoomId: String,
+        senderId: String,
+        receiverId: String,
+        listingId: String,
+        message: String,
+        offerId: String?
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+        val messageDto = ChatMessageDto(
+            id = "",
+            chatRoomId = chatRoomId,
+            senderId = senderId,
+            receiverId = receiverId,
+            listingId = listingId,
+            message = message,
+            timestamp = timestamp,
+            isRead = false,
+            offerId = offerId,
+            messageType = "SYSTEM"
+        )
+
+        val result = firestoreChatDataSource.sendMessage(messageDto)
+        if (result.isSuccess) {
+            firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, message, timestamp)
+            Result.success(Unit)
+        } else {
+            Result.failure(result.exceptionOrNull() ?: Exception("Failed to send system message"))
+        }
+    }
+
     override suspend fun markMessagesAsRead(chatRoomId: String, receiverId: String) {
         withContext(Dispatchers.IO) {
             firestoreChatDataSource.markMessagesAsRead(chatRoomId, receiverId)
