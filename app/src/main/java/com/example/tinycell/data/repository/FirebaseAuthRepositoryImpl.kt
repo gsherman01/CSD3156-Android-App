@@ -1,6 +1,7 @@
 package com.example.tinycell.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.userProfileChangeRequest
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -45,6 +46,18 @@ class FirebaseAuthRepositoryImpl(
     override fun signOut() {
         auth.signOut()
         debugUserId = null
+    }
+
+    /**
+     * Update the current user's display name.
+     * Updates Firebase Auth profile.
+     */
+    override suspend fun updateUserName(newName: String) {
+        val user = auth.currentUser ?: return
+        val profileUpdates = userProfileChangeRequest {
+            displayName = newName
+        }
+        user.updateProfile(profileUpdates).await()
     }
 
     override fun setDebugUserId(id: String?) {

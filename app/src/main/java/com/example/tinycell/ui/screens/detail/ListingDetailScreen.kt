@@ -9,16 +9,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -26,6 +33,7 @@ import coil.compose.AsyncImage
 import com.example.tinycell.data.local.AppDatabase
 import com.example.tinycell.data.repository.AuthRepository
 import com.example.tinycell.data.repository.ChatRepository
+import com.example.tinycell.data.repository.FavouriteRepository
 import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.ui.components.PriceTag
 import kotlinx.coroutines.launch
@@ -59,6 +67,7 @@ fun ListingDetailScreen(
     repository: ListingRepository,
     authRepository: AuthRepository,
     chatRepository: ChatRepository,
+    favouriteRepository: FavouriteRepository,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (chatRoomId: String, listingId: String, listingTitle: String, otherUserId: String, otherUserName: String) -> Unit
 ) {
@@ -80,24 +89,36 @@ fun ListingDetailScreen(
         }
     )
     */
+    // Get current user info
+    val currentUserId = authRepository.getCurrentUserId() ?: ""
+
     // Initialize ViewModel using the provided repository
     val viewModel: ListingDetailViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ListingDetailViewModel(repository, listingId) as T
+                return ListingDetailViewModel(repository, favouriteRepository, listingId, currentUserId) as T
             }
         }
     )
 
     val listing by viewModel.listing.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isFavourited by viewModel.isFavourited.collectAsState()
+    val favouriteCount by viewModel.favouriteCount.collectAsState()
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
     var isStartingChat by remember { mutableStateOf(false) }
 
-    // Get current user info
-    val currentUserId = authRepository.getCurrentUserId() ?: ""
+    // Favorite button animation
+    val favoriteScale by animateFloatAsState(
+        targetValue = if (isFavourited) 1.2f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "favoriteScale"
+    )
 
     // Show loading indicator
     if (isLoading) {
@@ -122,6 +143,30 @@ fun ListingDetailScreen(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back"
                             )
+                        }
+                    },
+                    actions = {
+                        // Favorite button with count badge
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            if (favouriteCount > 0) {
+                                Text(
+                                    text = favouriteCount.toString(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(end = 4.dp)
+                                )
+                            }
+                            IconButton(onClick = { viewModel.toggleFavourite() }) {
+                                Icon(
+                                    imageVector = if (isFavourited) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = if (isFavourited) "Remove from favorites" else "Add to favorites",
+                                    tint = if (isFavourited) Color.Red else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.scale(favoriteScale)
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

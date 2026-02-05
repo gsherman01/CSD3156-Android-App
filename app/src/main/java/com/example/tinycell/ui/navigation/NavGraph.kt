@@ -14,6 +14,7 @@ import com.example.tinycell.ui.screens.create.CreateListingScreen
 import com.example.tinycell.ui.screens.detail.ListingDetailScreen
 import com.example.tinycell.ui.screens.home.HomeScreen
 import com.example.tinycell.ui.screens.listingchats.ListingChatsScreen
+import com.example.tinycell.ui.screens.myfavorites.MyFavoritesScreen
 import com.example.tinycell.ui.screens.mylistings.MyListingsScreen
 import com.example.tinycell.ui.screens.profile.ProfileScreen
 
@@ -40,9 +41,17 @@ fun TinyCellNavHost(
                     navController.navigate(Screen.CreateListing.route)
                 },
                 onNavigateToProfile = {
-                    navController.navigate(Screen.Profile.route)
+                    navController.navigate(Screen.Profile.route) {
+                        // Ensure we can always navigate back to home
+                        launchSingleTop = true
+                    }
                 },
-                listingRepository = listingRepository
+                onNavigateToMyFavorites = {
+                    navController.navigate(Screen.MyFavorites.route)
+                },
+                listingRepository = listingRepository,
+                favouriteRepository = appContainer.favouriteRepository,
+                authRepository = authRepository
             )
         }
 
@@ -64,6 +73,7 @@ fun TinyCellNavHost(
                 repository = listingRepository,
                 authRepository = authRepository,
                 chatRepository = chatRepository,
+                favouriteRepository = appContainer.favouriteRepository,
                 onNavigateBack = {
                     navController.popBackStack()
                 },
@@ -82,8 +92,7 @@ fun TinyCellNavHost(
                 onNavigateToMyListings = {
                     navController.navigate(Screen.MyListings.route)
                 },
-                appContainer = appContainer,
-
+                appContainer = appContainer
             )
         }
 
@@ -145,6 +154,20 @@ fun TinyCellNavHost(
                     navController.navigate(
                         Screen.ListingChats.createRoute(listingId, listingTitle)
                     )
+                }
+            )
+        }
+
+        // Feature: My Favorites (User's saved listings)
+        composable(Screen.MyFavorites.route) {
+            MyFavoritesScreen(
+                favouriteRepository = appContainer.favouriteRepository,
+                authRepository = authRepository,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToDetail = { listingId ->
+                    navController.navigate(Screen.ListingDetail.createRoute(listingId))
                 }
             )
         }

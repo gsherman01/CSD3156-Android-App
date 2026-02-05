@@ -11,6 +11,11 @@ interface AuthRepository {
     fun signOut()
 
     /**
+     * Update the current user's display name.
+     */
+    suspend fun updateUserName(newName: String)
+
+    /**
      * [ADMIN_ONLY]: For testing on a single device.
      * Allows overriding the Firebase UID with a custom string.
      */

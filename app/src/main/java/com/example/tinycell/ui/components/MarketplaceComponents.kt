@@ -1,13 +1,22 @@
 package com.example.tinycell.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -33,8 +42,19 @@ import com.example.tinycell.data.model.Listing
 fun ListingCard(
     listing: Listing,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isFavourited: Boolean = false,
+    onFavouriteClick: (() -> Unit)? = null
 ) {
+    // Favorite button animation
+    val favoriteScale by animateFloatAsState(
+        targetValue = if (isFavourited) 1.2f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "favoriteScale"
+    )
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -47,7 +67,7 @@ fun ListingCard(
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Image section with status badge overlay
+            // Image section with status badge overlay and favorite button
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -59,15 +79,37 @@ fun ListingCard(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Status badge overlay (top-right corner)
+                // Status badge overlay (top-left corner)
                 if (listing.isSold || listing.status != "AVAILABLE") {
                     ListingStatusBadge(
                         isSold = listing.isSold,
                         status = listing.status,
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
+                            .align(Alignment.TopStart)
                             .padding(8.dp)
                     )
+                }
+
+                // Favorite button overlay (top-right corner)
+                if (onFavouriteClick != null) {
+                    IconButton(
+                        onClick = onFavouriteClick,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(40.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                shape = CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = if (isFavourited) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (isFavourited) "Remove from favorites" else "Add to favorites",
+                            tint = if (isFavourited) Color.Red else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.scale(favoriteScale)
+                        )
+                    }
                 }
             }
 

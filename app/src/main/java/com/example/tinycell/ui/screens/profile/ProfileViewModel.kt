@@ -26,6 +26,34 @@ class ProfileViewModel(
     private val _isGeneratingListings = MutableStateFlow(false)
     val isGeneratingListings: StateFlow<Boolean> = _isGeneratingListings.asStateFlow()
 
+    private val _showEditDialog = MutableStateFlow(false)
+    val showEditDialog: StateFlow<Boolean> = _showEditDialog.asStateFlow()
+
+    /**
+     * Show the profile edit dialog.
+     */
+    fun showEditDialog() {
+        _showEditDialog.value = true
+    }
+
+    /**
+     * Hide the profile edit dialog.
+     */
+    fun hideEditDialog() {
+        _showEditDialog.value = false
+    }
+
+    /**
+     * Update the user's display name.
+     */
+    fun updateUserName(newName: String) {
+        viewModelScope.launch {
+            authRepository.updateUserName(newName)
+            _userName.value = authRepository.getCurrentUserName() ?: "Anonymous"
+            hideEditDialog()
+        }
+    }
+
     fun switchUser(newId: String) {
         authRepository.setDebugUserId(newId)
         _userId.value = authRepository.getCurrentUserId() ?: "Not Logged In"

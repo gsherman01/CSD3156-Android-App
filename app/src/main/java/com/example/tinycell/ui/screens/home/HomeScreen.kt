@@ -13,12 +13,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tinycell.data.repository.AuthRepository
+import com.example.tinycell.data.repository.FavouriteRepository
 import com.example.tinycell.data.repository.ListingRepository
 import com.example.tinycell.ui.components.ListingCard
 
 // Icons
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.ui.text.style.TextAlign
 
 /**
@@ -30,14 +33,20 @@ fun HomeScreen(
     onNavigateToDetail: (String) -> Unit,
     onNavigateToCreate: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    listingRepository: ListingRepository
+    onNavigateToMyFavorites: () -> Unit,
+    listingRepository: ListingRepository,
+    favouriteRepository: FavouriteRepository,
+    authRepository: AuthRepository
 ) {
+    // Get current user ID
+    val currentUserId = authRepository.getCurrentUserId() ?: ""
+
     // Initialize ViewModel
     val viewModel: HomeViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return HomeViewModel(listingRepository) as T
+                return HomeViewModel(listingRepository, favouriteRepository, currentUserId) as T
             }
         }
     )
@@ -48,6 +57,7 @@ fun HomeScreen(
     val searchFilters by viewModel.searchFilters.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val showFilterSheet by viewModel.showFilterSheet.collectAsState()
+    val favouriteStates by viewModel.favouriteStates.collectAsState()
 
     Scaffold(
         topBar = {
@@ -57,6 +67,10 @@ fun HomeScreen(
                     // Refresh Button
                     IconButton(onClick = { viewModel.refreshListings() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                    // My Favorites Button
+                    IconButton(onClick = onNavigateToMyFavorites) {
+                        Icon(Icons.Default.Favorite, contentDescription = "My Favorites")
                     }
                     // Profile Button
                     IconButton(onClick = onNavigateToProfile) {
@@ -127,7 +141,9 @@ fun HomeScreen(
                         ) { listing ->
                             ListingCard(
                                 listing = listing,
-                                onClick = { onNavigateToDetail(listing.id) }
+                                onClick = { onNavigateToDetail(listing.id) },
+                                isFavourited = favouriteStates[listing.id] ?: false,
+                                onFavouriteClick = { viewModel.toggleFavourite(listing.id) }
                             )
                         }
                     }

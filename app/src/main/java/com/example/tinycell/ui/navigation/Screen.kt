@@ -37,6 +37,7 @@ sealed class Screen(val route: String) {
     }
 
     object MyListings : Screen("my_listings")
+    object MyFavorites : Screen("my_favorites")
 
     object ListingChats : Screen("listing_chats/{listingId}/{listingTitle}") {
         fun createRoute(listingId: String, listingTitle: String): String {

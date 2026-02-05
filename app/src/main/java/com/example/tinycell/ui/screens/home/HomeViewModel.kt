@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tinycell.data.local.entity.CategoryEntity
 import com.example.tinycell.data.model.Listing
+import com.example.tinycell.data.repository.FavouriteRepository
 import com.example.tinycell.data.repository.ListingRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -30,8 +31,13 @@ data class SearchFilters(
  * - Price range filter
  * - Date range filter
  * - Multiple filters can be applied simultaneously
+ * - Favorite tracking and toggling
  */
-class HomeViewModel(private val repository: ListingRepository) : ViewModel() {
+class HomeViewModel(
+    private val repository: ListingRepository,
+    private val favouriteRepository: FavouriteRepository,
+    private val currentUserId: String
+) : ViewModel() {
 
     // Categories loaded from database
     private val _categories = MutableStateFlow<List<CategoryEntity>>(emptyList())
@@ -47,6 +53,10 @@ class HomeViewModel(private val repository: ListingRepository) : ViewModel() {
 
     private val _showFilterSheet = MutableStateFlow(false)
     val showFilterSheet: StateFlow<Boolean> = _showFilterSheet.asStateFlow()
+
+    // Favorite state - Map of listing ID to favorite status
+    private val _favouriteStates = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val favouriteStates: StateFlow<Map<String, Boolean>> = _favouriteStates.asStateFlow()
 
     /**
      * Listings filtered based on current search and filter criteria.
@@ -66,6 +76,7 @@ class HomeViewModel(private val repository: ListingRepository) : ViewModel() {
 
     init {
         loadCategories()
+        loadFavouriteStates()
     }
 
     /**
@@ -198,5 +209,40 @@ class HomeViewModel(private val repository: ListingRepository) : ViewModel() {
         if (filters.minPrice > 0.0 || filters.maxPrice < Double.MAX_VALUE) count++
         if (filters.minDate != null || filters.maxDate != null) count++
         return count
+    }
+
+    /**
+     * Load favorite states for all listings
+     */
+    private fun loadFavouriteStates() {
+        viewModelScope.launch {
+            listings.collect { listingList ->
+                val states = mutableMapOf<String, Boolean>()
+                listingList.forEach { listing ->
+                    states[listing.id] = favouriteRepository.isFavourite(currentUserId, listing.id)
+                }
+                _favouriteStates.value = states
+            }
+        }
+    }
+
+    /**
+     * Toggle favorite status for a listing
+     */
+    fun toggleFavourite(listingId: String) {
+        viewModelScope.launch {
+            favouriteRepository.toggleFavourite(currentUserId, listingId)
+            // Update local state immediately for responsive UI
+            _favouriteStates.value = _favouriteStates.value.toMutableMap().apply {
+                this[listingId] = !(this[listingId] ?: false)
+            }
+        }
+    }
+
+    /**
+     * Check if a listing is favourited
+     */
+    fun isFavourited(listingId: String): Boolean {
+        return _favouriteStates.value[listingId] ?: false
     }
 }

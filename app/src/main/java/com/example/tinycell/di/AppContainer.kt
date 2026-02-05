@@ -83,6 +83,11 @@ class AppContainer(private val context: Context) {
         )
     }
 
+    val favouriteRepository: FavouriteRepository by lazy {
+        Log.d(TAG, "Creating FavouriteRepository")
+        FavouriteRepository(database.favouriteDao())
+    }
+
     private val database: AppDatabase by lazy {
         Log.d(TAG, "Initializing Room Database")
         AppDatabase.getDatabase(context)

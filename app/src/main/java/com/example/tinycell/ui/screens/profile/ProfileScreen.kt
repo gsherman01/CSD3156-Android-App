@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -43,6 +44,7 @@ fun ProfileScreen(
     val userId by viewModel.userId.collectAsState()
     val userName by viewModel.userName.collectAsState()
     val isGeneratingListings by viewModel.isGeneratingListings.collectAsState()
+    val showEditDialog by viewModel.showEditDialog.collectAsState()
     var showDebugMenu by remember { mutableStateOf(false) }
 
     Column(
@@ -66,17 +68,35 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Display Current UID and Name
+        // Display Current UID and Name with Edit Button
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(text = "Username:", style = MaterialTheme.typography.labelSmall)
-                Text(text = userName, style = MaterialTheme.typography.bodyLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Internal UID:", style = MaterialTheme.typography.labelSmall)
-                Text(text = userId, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "Username:", style = MaterialTheme.typography.labelSmall)
+                    Text(text = userName, style = MaterialTheme.typography.bodyLarge)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = "Internal UID:", style = MaterialTheme.typography.labelSmall)
+                    Text(text = userId, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+                IconButton(
+                    onClick = { viewModel.showEditDialog() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Profile",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
@@ -129,6 +149,15 @@ fun ProfileScreen(
                 isGenerating = isGeneratingListings
             )
         }
+    }
+
+    // Profile Edit Dialog
+    if (showEditDialog) {
+        ProfileEditDialog(
+            currentName = userName,
+            onDismiss = { viewModel.hideEditDialog() },
+            onConfirm = { newName -> viewModel.updateUserName(newName) }
+        )
     }
 }
 
@@ -250,4 +279,81 @@ fun AdminDebugPanel(
             }
         }
     }
+}
+
+/**
+ * Profile Edit Dialog
+ * Allows users to edit their display name.
+ */
+@Composable
+fun ProfileEditDialog(
+    currentName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var editedName by remember { mutableStateOf(currentName) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Edit Profile",
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Update your display name",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = editedName,
+                    onValueChange = {
+                        editedName = it
+                        errorMessage = when {
+                            it.isBlank() -> "Name cannot be empty"
+                            it.length < 2 -> "Name must be at least 2 characters"
+                            it.length > 30 -> "Name must be less than 30 characters"
+                            else -> null
+                        }
+                    },
+                    label = { Text("Display Name") },
+                    singleLine = true,
+                    isError = errorMessage != null,
+                    supportingText = {
+                        if (errorMessage != null) {
+                            Text(
+                                text = errorMessage ?: "",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (editedName.isNotBlank() && editedName.length in 2..30) {
+                        onConfirm(editedName)
+                    }
+                },
+                enabled = editedName.isNotBlank() && editedName.length in 2..30
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
