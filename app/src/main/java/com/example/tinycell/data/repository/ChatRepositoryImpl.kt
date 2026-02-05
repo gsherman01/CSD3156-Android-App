@@ -139,6 +139,11 @@ class ChatRepositoryImpl(
             .map { dtos -> dtos.map { it.toDomain() } }
     }
 
+    override fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>> {
+        return firestoreChatDataSource.getAllChatRoomsForUser(userId)
+            .map { dtos -> dtos.map { it.toDomain() } }
+    }
+
     override fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int> {
         return firestoreChatDataSource.getUnreadMessageCount(chatRoomId, userId)
     }

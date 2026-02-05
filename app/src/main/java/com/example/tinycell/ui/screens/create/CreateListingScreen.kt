@@ -1,10 +1,16 @@
 package com.example.tinycell.ui.screens.create
 
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 //import androidx.compose.material.icons.Icons
@@ -14,10 +20,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.tinycell.data.repository.ListingRepository
 
 //to fix material  3 smalltopbar
@@ -30,6 +41,7 @@ IconButton + Icons.Default.ArrowBac
  */
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.MaterialTheme
 
 // for a dropdown menu for category
@@ -62,6 +74,17 @@ fun CreateListingScreen(
 
     // FIX: Define the missing 'expanded' state for the dropdown menu
     var expanded by remember { mutableStateOf(false) }
+
+    // Image picker launcher - allows selecting multiple images
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5),
+        onResult = { uris: List<Uri> ->
+            // Add selected image URIs to the view model
+            uris.forEach { uri ->
+                viewModel.addImage(uri.toString())
+            }
+        }
+    )
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     /*
@@ -106,7 +129,14 @@ fun CreateListingScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Text("Images", style = MaterialTheme.typography.titleMedium)
+            Text("Images (Optional)", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Add up to 5 photos",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             LazyRow(
                 modifier = Modifier
@@ -114,20 +144,24 @@ fun CreateListingScreen(
                     .height(110.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.imagePaths) { path ->
-                    Card(modifier = Modifier.size(100.dp)) {
-                        Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                            Text("Img", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
+                items(uiState.imagePaths) { imagePath ->
+                    ImagePreviewCard(
+                        imageUri = imagePath,
+                        onRemove = { viewModel.removeImage(imagePath) }
+                    )
                 }
                 item {
                     OutlinedButton(
-                        onClick = { /* TODO: Trigger Camera/Gallery */ },
+                        onClick = {
+                            imagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
                         modifier = Modifier.size(100.dp),
-                        shape = MaterialTheme.shapes.medium
+                        shape = MaterialTheme.shapes.medium,
+                        enabled = uiState.imagePaths.size < 5
                     ) {
-                        Text("+")
+                        Text("+", style = MaterialTheme.typography.headlineMedium)
                     }
                 }
             }
@@ -218,6 +252,51 @@ fun CreateListingScreen(
         }
     }//end of scaffolding
 }//end of function
+
+/**
+ * Image Preview Card - Shows selected image with remove button
+ */
+@Composable
+private fun ImagePreviewCard(
+    imageUri: String,
+    onRemove: () -> Unit
+) {
+    Box(modifier = Modifier.size(100.dp)) {
+        Card(
+            modifier = Modifier.fillMaxSize(),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            AsyncImage(
+                model = imageUri,
+                contentDescription = "Selected image",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Remove button overlay
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(24.dp)
+                .padding(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Remove image",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .size(20.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(50)
+                    )
+                    .padding(2.dp)
+            )
+        }
+    }
+}
 
 
 /*

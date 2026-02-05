@@ -86,6 +86,15 @@ class CreateListingViewModel(private val repository: ListingRepository) : ViewMo
     }
 
     /**
+     * Remove an image from the selection
+     */
+    fun removeImage(path: String) {
+        val currentImages = _uiState.value.imagePaths.toMutableList()
+        currentImages.remove(path)
+        _uiState.value = _uiState.value.copy(imagePaths = currentImages)
+    }
+
+    /**
      * [TODO_DATABASE_INTEGRATION]:
      * - ACTION: DB lead to verify ListingEntity constraints in AppDatabase.
      *

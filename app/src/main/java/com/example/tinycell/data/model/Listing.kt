@@ -12,5 +12,7 @@ data class Listing(
     val sellerId: String,             // Seller's user ID for chat functionality
     val sellerName: String,
     val description: String? = null,  // Optional description for detail screen
-    val imageUrl: String? = null      // Optional image URL (placeholder-ready for AsyncImage)
+    val imageUrl: String? = null,     // Optional image URL (placeholder-ready for AsyncImage)
+    val isSold: Boolean = false,      // Listing sold status
+    val status: String = "AVAILABLE"  // AVAILABLE, PENDING (Under Offer), SOLD
 )

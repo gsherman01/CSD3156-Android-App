@@ -40,6 +40,13 @@ interface ChatRepository {
 
     suspend fun markMessagesAsRead(chatRoomId: String, receiverId: String)
     fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>>
+
+    /**
+     * Gets all chat rooms where the user is either a buyer or seller.
+     * Used for the "All Chats" screen in bottom navigation.
+     */
+    fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>>
+
     fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int>
     fun generateChatRoomId(listingId: String, userId1: String, userId2: String): String
 }

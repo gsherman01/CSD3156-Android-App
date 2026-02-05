@@ -81,6 +81,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.3")
     //implementation(libs.androidx.material3)
 
+    // Coil - Image Loading Library for Compose
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
     // Room Database
     // Version 2.6.1 is required for Java 17 compatibility
     val roomVersion = "2.6.1"

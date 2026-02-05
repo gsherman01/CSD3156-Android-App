@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.tinycell.data.local.AppDatabase
 import com.example.tinycell.data.repository.AuthRepository
 import com.example.tinycell.data.repository.ChatRepository
@@ -136,21 +138,19 @@ fun ListingDetailScreen(
                     .verticalScroll(scrollState)
             ) {
                 // Hero Image Section
-                // Large image placeholder (ready for AsyncImage/Coil integration)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // TODO: Replace with AsyncImage when Coil is available
-                    // AsyncImage(model = listing.imageUrl, contentDescription = listing.title)
-                    Text(
-                        text = "📷",
-                        fontSize = 72.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                // Display listing image with Coil
+                if (!listingData.imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = listingData.imageUrl,
+                        contentDescription = listingData.title,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp),
+                        contentScale = ContentScale.Crop
                     )
+                } else {
+                    // No image available
+                    ImagePlaceholderBox()
                 }
 
                 // Content Section
@@ -166,6 +166,14 @@ fun ListingDetailScreen(
                             fontWeight = FontWeight.Bold
                         ),
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Status Badge
+                    com.example.tinycell.ui.components.ListingStatusBadge(
+                        isSold = listingData.isSold,
+                        status = listingData.status
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -233,12 +241,12 @@ fun ListingDetailScreen(
                         )
                     }
 
-                    // Chat with Seller button (only shown if viewer is not the seller)
+                    // Chat with Seller button (only shown if viewer is not the seller and listing is not sold)
                     Spacer(modifier = Modifier.height(24.dp))
 
                     val isCurrentUserSeller = currentUserId == listingData.sellerId
 
-                    if (!isCurrentUserSeller) {
+                    if (!isCurrentUserSeller && !listingData.isSold) {
                         Button(
                             onClick = {
                                 isStartingChat = true
@@ -315,6 +323,28 @@ fun ListingDetailScreen(
                 color = MaterialTheme.colorScheme.error
             )
         }
+    }
+}
+
+/**
+ * IMAGE PLACEHOLDER BOX
+ *
+ * Displayed when image is loading, failed to load, or not available
+ */
+@Composable
+private fun ImagePlaceholderBox() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "📷",
+            fontSize = 72.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+        )
     }
 }
 

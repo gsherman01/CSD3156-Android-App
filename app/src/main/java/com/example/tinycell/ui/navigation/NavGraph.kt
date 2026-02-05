@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import com.example.tinycell.data.repository.AuthRepository
 import com.example.tinycell.data.repository.ChatRepository
 import com.example.tinycell.data.repository.ListingRepository
+import com.example.tinycell.ui.screens.allchats.AllChatsScreen
 import com.example.tinycell.ui.screens.camera.CameraScreen
 import com.example.tinycell.ui.screens.chat.ChatScreen
 import com.example.tinycell.ui.screens.create.CreateListingScreen
@@ -83,6 +84,19 @@ fun TinyCellNavHost(
                 },
                 appContainer = appContainer,
 
+            )
+        }
+
+        // Feature: All Chats (Bottom Nav Destination)
+        composable(Screen.AllChats.route) {
+            AllChatsScreen(
+                chatRepository = chatRepository,
+                authRepository = authRepository,
+                onNavigateToChat = { chatRoomId, listingId, listingTitle, otherUserId, otherUserName ->
+                    navController.navigate(
+                        Screen.Chat.createRoute(chatRoomId, listingId, listingTitle, otherUserId, otherUserName)
+                    )
+                }
             )
         }
 

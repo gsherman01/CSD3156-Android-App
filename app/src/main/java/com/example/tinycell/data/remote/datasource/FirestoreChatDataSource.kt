@@ -165,6 +165,46 @@ class FirestoreChatDataSource(
     }
 
     /**
+     * Get all chat rooms where the user is either a buyer or seller.
+     * Used for the "All Chats" screen.
+     * Returns real-time flow of chat rooms sorted by most recent message.
+     */
+    fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoomDto>> = callbackFlow {
+        Log.d(TAG, "Starting all chat rooms listener for user: $userId")
+
+        // Listen to all chat rooms and filter client-side for this user
+        // This approach is simpler than managing multiple Firestore queries
+        val subscription = chatRoomsCollection
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Chat rooms listener error: ${error.message}")
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                val allRooms = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(ChatRoomDto::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+
+                // Filter rooms where user is either buyer or seller
+                val userRooms = allRooms.filter { room ->
+                    room.buyerId == userId || room.sellerId == userId
+                }
+
+                // Sort by most recent message
+                val sortedRooms = userRooms.sortedByDescending { it.lastMessageTimestamp ?: 0L }
+
+                Log.d(TAG, "Received ${sortedRooms.size} chat rooms for user $userId")
+                trySend(sortedRooms)
+            }
+
+        awaitClose {
+            Log.d(TAG, "Closing all chat rooms listener for user: $userId")
+            subscription.remove()
+        }
+    }
+
+    /**
      * Get unread message count for a specific chat room and user.
      * Returns real-time flow of unread count.
      */

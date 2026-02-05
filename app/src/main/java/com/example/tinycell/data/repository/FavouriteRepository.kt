@@ -112,6 +112,8 @@ private fun ListingEntity.toListing(): Listing {
         sellerId = userId,
         sellerName = sellerName,
         description = description,
-        imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() }
+        imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() },
+        isSold = isSold,
+        status = status
     )
 }

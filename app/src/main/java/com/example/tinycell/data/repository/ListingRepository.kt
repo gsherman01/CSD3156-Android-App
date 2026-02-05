@@ -199,11 +199,31 @@ class ListingRepository(
  * Mapping Helpers
  */
 private fun ListingEntity.toListing() = Listing(
-    id = id, title = title, price = price, category = categoryId, sellerId = userId, sellerName = sellerName, description = description, imageUrl = imageUrls.split(",").firstOrNull()
+    id = id,
+    title = title,
+    price = price,
+    category = categoryId,
+    sellerId = userId,
+    sellerName = sellerName,
+    description = description,
+    imageUrl = imageUrls.split(",").firstOrNull(),
+    isSold = isSold,
+    status = status
 )
 
 private fun Listing.toEntity(uid: String, sName: String) = ListingEntity(
-    id = id, title = title, description = description ?: "", price = price, userId = uid, sellerName = sName, categoryId = category, location = null, imageUrls = imageUrl ?: "", createdAt = System.currentTimeMillis(), isSold = false
+    id = id,
+    title = title,
+    description = description ?: "",
+    price = price,
+    userId = uid,
+    sellerName = sName,
+    categoryId = category,
+    location = null,
+    imageUrls = imageUrl ?: "",
+    createdAt = System.currentTimeMillis(),
+    isSold = isSold,
+    status = status
 )
 
 private fun OfferDto.toEntity() = OfferEntity(
