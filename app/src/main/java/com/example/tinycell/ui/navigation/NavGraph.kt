@@ -41,16 +41,6 @@ fun TinyCellNavHost(
                 onNavigateToCreate = {
                     navController.navigate(Screen.CreateListing.route)
                 },
-                onNavigateToProfile = {
-                    // Navigate to Profile using the same pattern as bottom nav
-                    // This prevents navigation state conflicts
-                    navController.navigate(Screen.Profile.route) {
-                        // Pop up to the start destination to avoid building up a large stack
-                        popUpTo(navController.graph.findStartDestination().id)
-                        // Avoid multiple copies of the same destination
-                        launchSingleTop = true
-                    }
-                },
                 onNavigateToMyFavorites = {
                     navController.navigate(Screen.MyFavorites.route)
                 },

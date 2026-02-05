@@ -32,7 +32,6 @@ import androidx.compose.ui.text.style.TextAlign
 fun HomeScreen(
     onNavigateToDetail: (String) -> Unit,
     onNavigateToCreate: () -> Unit,
-    onNavigateToProfile: () -> Unit,
     onNavigateToMyFavorites: () -> Unit,
     listingRepository: ListingRepository,
     favouriteRepository: FavouriteRepository,
@@ -71,10 +70,6 @@ fun HomeScreen(
                     // My Favorites Button
                     IconButton(onClick = onNavigateToMyFavorites) {
                         Icon(Icons.Default.Favorite, contentDescription = "My Favorites")
-                    }
-                    // Profile Button
-                    IconButton(onClick = onNavigateToProfile) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Profile")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
