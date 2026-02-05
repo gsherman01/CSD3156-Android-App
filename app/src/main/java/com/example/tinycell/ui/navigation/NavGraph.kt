@@ -2,6 +2,7 @@ package com.example.tinycell.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.tinycell.data.repository.AuthRepository
@@ -41,8 +42,12 @@ fun TinyCellNavHost(
                     navController.navigate(Screen.CreateListing.route)
                 },
                 onNavigateToProfile = {
+                    // Navigate to Profile using the same pattern as bottom nav
+                    // This prevents navigation state conflicts
                     navController.navigate(Screen.Profile.route) {
-                        // Ensure we can always navigate back to home
+                        // Pop up to the start destination to avoid building up a large stack
+                        popUpTo(navController.graph.findStartDestination().id)
+                        // Avoid multiple copies of the same destination
                         launchSingleTop = true
                     }
                 },
