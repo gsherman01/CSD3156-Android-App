@@ -6,9 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -28,14 +28,10 @@ import com.example.tinycell.ui.theme.TinyCellTheme
 
 class MainActivity : ComponentActivity() {
 
-    // Manual DI Container
     private lateinit var appContainer: AppContainer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // [FIX]: Access the container from MarketplaceApp to ensure single instance
-        // and that initializeData() has been triggered.
         appContainer = (application as MarketplaceApp).container
 
         setContent {
@@ -52,7 +48,8 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Bottom Navigation Item Definition
+ * Bottom Navigation Item Definition.
+ * Updated to match Carousell flow: Home, Sell, Chats, Profile.
  */
 data class BottomNavItem(
     val route: String,
@@ -62,14 +59,13 @@ data class BottomNavItem(
 
 val bottomNavItems = listOf(
     BottomNavItem(Screen.Home.route, Icons.Default.Home, "Home"),
+    BottomNavItem(Screen.CreateListing.route, Icons.Default.AddCircle, "Sell"), // Updated
     BottomNavItem(Screen.AllChats.route, Icons.Default.Chat, "Chats"),
-    BottomNavItem(Screen.MyListings.route, Icons.Default.List, "My Listings"),
     BottomNavItem(Screen.Profile.route, Icons.Default.Person, "Profile")
 )
 
 /**
- * Main Scaffold with Bottom Navigation
- * Shows bottom nav only on top-level screens
+ * Main Scaffold with Polished Bottom Navigation.
  */
 @Composable
 fun MainScaffoldWithBottomNav(
@@ -79,7 +75,7 @@ fun MainScaffoldWithBottomNav(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // Determine if bottom nav should be shown
+    // Logic: Show bottom nav only on top-level destinations
     val bottomNavRoutes = bottomNavItems.map { it.route }
     val shouldShowBottomNav = currentDestination?.route in bottomNavRoutes
 
@@ -93,15 +89,20 @@ fun MainScaffoldWithBottomNav(
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                navController.navigate(item.route) {
-                                    // Pop up to the start destination to avoid building up a large stack
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                                if (!selected) { // Prevent re-navigating to the same tab
+                                    navController.navigate(item.route) {
+                                        // Pop up to the start destination of the graph to
+                                        // avoid building up a large stack of destinations
+                                        // on the back stack as users select items
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        // Avoid multiple copies of the same destination when
+                                        // reselecting the same item
+                                        launchSingleTop = true
+                                        // Restore state when reselecting a previously selected item
+                                        restoreState = true
                                     }
-                                    // Avoid multiple copies of the same destination
-                                    launchSingleTop = true
-                                    // Restore state when reselecting a previously selected item
-                                    restoreState = true
                                 }
                             },
                             icon = {
