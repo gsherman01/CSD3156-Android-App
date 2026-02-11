@@ -1,5 +1,6 @@
 package com.example.tinycell.ui.components
 
+import android.text.format.DateUtils
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -27,16 +28,13 @@ import coil.compose.AsyncImage
 import com.example.tinycell.data.model.Listing
 
 /**
- * LISTING CARD COMPONENT
+ * LISTING CARD COMPONENT (2-Column Optimized)
  *
- * Carousell-inspired marketplace listing card.
- * Design principles:
- * - Image-first layout (large square placeholder)
- * - Prominent price display
- * - Compact, scannable information
- * - Clear visual separation between cards
- *
- * Usage: Display in LazyColumn/LazyVerticalGrid for browsing experience
+ * Updated for "Carousell" flow:
+ * - 2 images per width (Grid layout)
+ * - Shortened recent date (e.g., 2d ago)
+ * - Heart icon (top-right)
+ * - Price & Seller name
  */
 @Composable
 fun ListingCard(
@@ -46,7 +44,6 @@ fun ListingCard(
     isFavourited: Boolean = false,
     onFavouriteClick: (() -> Unit)? = null
 ) {
-    // Favorite button animation
     val favoriteScale by animateFloatAsState(
         targetValue = if (isFavourited) 1.2f else 1f,
         animationSpec = spring(
@@ -55,23 +52,22 @@ fun ListingCard(
         ),
         label = "favoriteScale"
     )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
+            .padding(4.dp), 
         onClick = onClick,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            // Image section with status badge overlay and favorite button
+        Column {
+            // 1. Image section
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .aspectRatio(1f)
             ) {
                 ImagePlaceholder(
                     imageUrl = listing.imageUrl,
@@ -79,76 +75,81 @@ fun ListingCard(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Status badge overlay (top-left corner)
-                if (listing.isSold || listing.status != "AVAILABLE") {
-                    ListingStatusBadge(
-                        isSold = listing.isSold,
-                        status = listing.status,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(8.dp)
-                    )
-                }
-
-                // Favorite button overlay (top-right corner)
+                // Favorite button (top-right overlay)
                 if (onFavouriteClick != null) {
                     IconButton(
                         onClick = onFavouriteClick,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(4.dp)
-                            .size(40.dp)
+                            .size(32.dp)
                             .background(
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
                                 shape = CircleShape
                             )
                     ) {
                         Icon(
                             imageVector = if (isFavourited) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = if (isFavourited) "Remove from favorites" else "Add to favorites",
+                            contentDescription = "Favorite",
                             tint = if (isFavourited) Color.Red else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.scale(favoriteScale)
+                            modifier = Modifier.scale(favoriteScale).size(18.dp)
+                        )
+                    }
+                }
+
+                // Status Badge (bottom-left overlay)
+                if (listing.isSold || listing.status != "AVAILABLE") {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(6.dp)
+                    ) {
+                        ListingStatusBadge(
+                            isSold = listing.isSold,
+                            status = listing.status
                         )
                     }
                 }
             }
 
-            // Content section: title, price, seller
+            // 2. Info section
             Column(
                 modifier = Modifier
+                    .padding(8.dp)
                     .fillMaxWidth()
-                    .padding(12.dp)
             ) {
-                // Title - Max 2 lines with ellipsis (Carousell style)
-                Text(
-                    text = listing.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium
-                    ),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Price - Prominent display (key Carousell feature)
-                PriceTag(
-                    price = listing.price,
-                    textStyle = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Seller info - Subtle, secondary information
+                // Seller Name
                 Text(
                     text = listing.sellerName,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+
+                // Title
+                Text(
+                    text = listing.title,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    maxLines = 2,
+                    minLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+
+                // Price (Using the updated PriceTag)
+                PriceTag(
+                    price = listing.price,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+
+                // Date/Time (Shortened)
+                Text(
+                    text = getRelativeTime(listing.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }
@@ -156,39 +157,17 @@ fun ListingCard(
 }
 
 /**
- * PRICE TAG COMPONENT
- *
- * Displays price with currency formatting.
- * Design: Bold, prominent, uses primary color to catch attention.
- *
- * Reusable across listing cards, detail screens, and checkout flows.
+ * Helper to get shortened relative time
  */
-@Composable
-fun PriceTag(
-    price: Double,
-    modifier: Modifier = Modifier,
-    textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge.copy(
-        fontWeight = FontWeight.Bold
-    ),
-    color: Color = MaterialTheme.colorScheme.primary
-) {
-    Text(
-        text = "$${"%.2f".format(price)}",
-        style = textStyle,
-        color = color,
-        modifier = modifier
-    )
+private fun getRelativeTime(timestamp: Long): String {
+    return DateUtils.getRelativeTimeSpanString(
+        timestamp,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS,
+        DateUtils.FORMAT_ABBREV_RELATIVE
+    ).toString()
 }
 
-/**
- * IMAGE PLACEHOLDER COMPONENT
- *
- * Displays listing images using Coil's AsyncImage with proper loading states.
- * Shows:
- * - Actual image when URL is valid
- * - Placeholder while loading
- * - Error state with camera icon if image fails to load or URL is null
- */
 @Composable
 fun ImagePlaceholder(
     imageUrl: String?,
@@ -196,83 +175,64 @@ fun ImagePlaceholder(
     modifier: Modifier = Modifier
 ) {
     if (!imageUrl.isNullOrBlank()) {
-        // Load actual image with Coil
         AsyncImage(
             model = imageUrl,
             contentDescription = contentDescription,
-            modifier = modifier.clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+            modifier = modifier.clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
             contentScale = ContentScale.Crop
         )
     } else {
-        // No image URL provided
-        PlaceholderBox(modifier = modifier.clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)))
+        Box(
+            modifier = modifier
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("📷", fontSize = 32.sp)
+        }
     }
 }
 
-/**
- * Placeholder box displayed when image is loading, failed, or not available
- */
 @Composable
-private fun PlaceholderBox(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
+fun ListingStatusBadge(isSold: Boolean, status: String) {
+    val color = when {
+        isSold -> MaterialTheme.colorScheme.error
+        status == "PENDING" -> Color(0xFFFF9800)
+        else -> Color(0xFF4CAF50)
+    }
+    val text = when {
+        isSold -> "SOLD"
+        status == "PENDING" -> "OFFER"
+        else -> "NEW"
+    }
+
+    Surface(
+        color = color,
+        shape = RoundedCornerShape(4.dp)
     ) {
         Text(
-            text = "📷",
-            fontSize = 48.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+            text = text,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = Color.White,
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
 /**
- * LISTING STATUS BADGE
- *
- * Displays the current status of a listing with appropriate color coding.
- * - SOLD: Red background, indicates listing is no longer available
- * - PENDING: Orange background, indicates listing has active offers
- * - AVAILABLE: Green background, indicates listing is ready for purchase
+ * Restored textStyle for backward compatibility and reuse in Detail screen.
  */
 @Composable
-fun ListingStatusBadge(
-    isSold: Boolean,
-    status: String,
-    modifier: Modifier = Modifier
+fun PriceTag(
+    price: Double, 
+    modifier: Modifier = Modifier,
+    textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
 ) {
-    val (text, containerColor, contentColor) = when {
-        isSold -> Triple(
-            "SOLD",
-            MaterialTheme.colorScheme.error,
-            MaterialTheme.colorScheme.onError
-        )
-        status == "PENDING" -> Triple(
-            "UNDER OFFER",
-            Color(0xFFFF9800), // Orange
-            Color.White
-        )
-        else -> Triple(
-            "AVAILABLE",
-            Color(0xFF4CAF50), // Green
-            Color.White
-        )
-    }
-
-    AssistChip(
-        onClick = {},
-        label = {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold
-                )
-            )
-        },
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = containerColor,
-            labelColor = contentColor
-        ),
-        modifier = modifier.height(24.dp)
+    Text(
+        text = "$${"%.2f".format(price)}",
+        style = textStyle,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier
     )
 }

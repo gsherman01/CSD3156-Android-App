@@ -1,9 +1,10 @@
-
 package com.example.tinycell.ui.screens.home
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 
 /**
  * HOME SCREEN - MARKETPLACE BROWSING (With Search & Filters)
+ * Updated to 2-column grid layout for a modern marketplace feel.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,17 +120,17 @@ fun HomeScreen(
                 )
             }
 
-            // Listings Display
+            // Listings Display (2-Column Grid)
             Box(modifier = Modifier.fillMaxSize()) {
                 if (listings.isEmpty() && !isRefreshing) {
                     EmptyState(onRefresh = { viewModel.refreshListings() })
                 } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 16.dp)
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(
                             items = listings,

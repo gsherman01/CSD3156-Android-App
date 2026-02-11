@@ -148,7 +148,7 @@ class ListingRepository(
     }
 
     /**
-     * Updated to support Location and improved validation flow.
+     * Updated to support Location, Timestamp and improved validation flow.
      */
     suspend fun createNewListing(
         title: String, 
@@ -169,7 +169,8 @@ class ListingRepository(
             sellerName = currentName, 
             description = description, 
             imageUrl = imagePaths.joinToString(","),
-            location = location
+            location = location,
+            createdAt = System.currentTimeMillis() // Capture creation time
         )
         createListing(newListing.toEntity(currentUid, currentName))
     }
@@ -228,7 +229,8 @@ private fun ListingEntity.toListing() = Listing(
     imageUrl = imageUrls.split(",").firstOrNull(),
     location = location,
     isSold = isSold,
-    status = status
+    status = status,
+    createdAt = createdAt
 )
 
 private fun Listing.toEntity(uid: String, sName: String) = ListingEntity(
@@ -241,7 +243,7 @@ private fun Listing.toEntity(uid: String, sName: String) = ListingEntity(
     categoryId = category,
     location = location,
     imageUrls = imageUrl ?: "",
-    createdAt = System.currentTimeMillis(),
+    createdAt = createdAt,
     isSold = isSold,
     status = status
 )

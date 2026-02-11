@@ -2,7 +2,7 @@ package com.example.tinycell.data.model
 
 /**
  * Represents a marketplace listing.
- * Updated to include location for Carousell-like experience.
+ * Updated to include location and createdAt for Carousell-like experience.
  */
 data class Listing(
     val id: String,
@@ -13,7 +13,8 @@ data class Listing(
     val sellerName: String,
     val description: String? = null,
     val imageUrl: String? = null,
-    val location: String? = null,    // Added location field
+    val location: String? = null,
     val isSold: Boolean = false,
-    val status: String = "AVAILABLE"
+    val status: String = "AVAILABLE",
+    val createdAt: Long = System.currentTimeMillis() // Added createdAt field
 )
