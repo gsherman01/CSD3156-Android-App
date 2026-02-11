@@ -4,7 +4,6 @@ import android.util.Log
 import com.example.tinycell.data.local.dao.*
 import com.example.tinycell.data.local.entity.*
 import com.example.tinycell.data.model.Listing
-import com.example.tinycell.data.remote.model.ListingDto
 import com.example.tinycell.data.remote.model.OfferDto
 import com.example.tinycell.data.remote.model.toEntity
 import kotlinx.coroutines.CoroutineScope
@@ -32,10 +31,22 @@ class ListingRepository(
 
     /**
      * [OFFER_SYSTEM]: Make a new formal offer.
+     * Ensures the listing and users exist locally before creating the offer to prevent FK constraint errors.
      */
     suspend fun makeOffer(listingId: String, amount: Double, offerId: String = java.util.UUID.randomUUID().toString()) = withContext(Dispatchers.IO) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
-        val listing = listingDao.getListingById(listingId) ?: return@withContext
+        val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
+        
+        // Ensure the listing and its seller exist locally
+        val listing = listingDao.getListingById(listingId) ?: remoteRepo.getListingById(listingId)?.toEntity()?.also { listingDao.insert(it) }
+        if (listing == null) {
+            Log.e(TAG, "Cannot make offer on a non-existent listing: $listingId")
+            return@withContext
+        }
+
+        // Ensure both users exist locally
+        ensureUserExistsLocally(currentUid, currentName)
+        ensureUserExistsLocally(listing.userId, listing.sellerName)
         
         val offerDto = OfferDto(
             id = offerId,
@@ -170,12 +181,13 @@ class ListingRepository(
             description = description, 
             imageUrl = imagePaths.joinToString(","),
             location = location,
-            createdAt = System.currentTimeMillis() // Capture creation time
+            createdAt = System.currentTimeMillis()
         )
         createListing(newListing.toEntity(currentUid, currentName))
     }
 
     private suspend fun ensureUserExistsLocally(uid: String, name: String) {
+        if (uid == "anonymous") return
         val existingUser = userDao.getUserById(uid)
         if (existingUser == null) {
             userDao.insert(UserEntity(id = uid, name = name.ifBlank { "User_$uid" }, email = "", createdAt = System.currentTimeMillis()))
@@ -185,6 +197,12 @@ class ListingRepository(
     }
 
     suspend fun getListingById(id: String): Listing? = listingDao.getListingById(id)?.toListing()
+
+    /**
+     * Real-time observable listing.
+     */
+    fun getListingFlow(id: String): Flow<Listing?> = listingDao.getListingFlow(id).map { it?.toListing() }
+
     fun getListingsByCategory(categoryId: String) = listingDao.getListingsByCategory(categoryId).map { entities -> entities.map { it.toListing() } }
     fun getListingsByUser(userId: String): Flow<List<Listing>> = listingDao.getListingsByUser(userId).map { entities -> entities.map { it.toListing() } }
 

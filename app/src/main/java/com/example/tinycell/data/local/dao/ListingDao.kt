@@ -9,7 +9,6 @@ import androidx.room.Update
 import com.example.tinycell.data.local.entity.ListingEntity
 import kotlinx.coroutines.flow.Flow
 
-// incomplete part for CreateListing. This is known as foregin keys
 import com.example.tinycell.data.local.entity.CategoryEntity
 import com.example.tinycell.data.local.entity.UserEntity
 
@@ -39,6 +38,12 @@ interface ListingDao {
 
     @Query("SELECT * FROM listings WHERE id = :listingId")
     suspend fun getListingById(listingId: String): ListingEntity?
+
+    /**
+     * Observable single listing for real-time UI updates.
+     */
+    @Query("SELECT * FROM listings WHERE id = :listingId")
+    fun getListingFlow(listingId: String): Flow<ListingEntity?>
 
     @Query("SELECT * FROM listings WHERE categoryId = :categoryId ORDER BY createdAt DESC")
     fun getListingsByCategory(categoryId: String): Flow<List<ListingEntity>>

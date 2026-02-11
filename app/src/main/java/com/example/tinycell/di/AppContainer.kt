@@ -22,27 +22,15 @@ private const val TAG = "AppContainer"
  */
 class AppContainer(private val context: Context) {
 
-    // Application-level coroutine scope for background sync
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     init {
         Log.d(TAG, "Initializing AppContainer...")
     }
 
-    private val firestore: FirebaseFirestore by lazy {
-        Log.d(TAG, "Creating Firestore instance")
-        FirebaseFirestore.getInstance()
-    }
-    
-    private val storage: FirebaseStorage by lazy {
-        Log.d(TAG, "Creating Firebase Storage instance")
-        FirebaseStorage.getInstance()
-    }
-    
-    private val auth: FirebaseAuth by lazy {
-        Log.d(TAG, "Creating Firebase Auth instance")
-        FirebaseAuth.getInstance()
-    }
+    private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+    private val storage: FirebaseStorage by lazy { FirebaseStorage.getInstance() }
+    private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
 
     val authRepository: AuthRepository by lazy {
         FirebaseAuthRepositoryImpl(auth)
@@ -57,7 +45,6 @@ class AppContainer(private val context: Context) {
     }
 
     val listingRepository: ListingRepository by lazy {
-        Log.d(TAG, "Creating ListingRepository")
         ListingRepository(
             database.listingDao(),
             database.userDao(),
@@ -69,48 +56,36 @@ class AppContainer(private val context: Context) {
     }
 
     private val firestoreChatDataSource: FirestoreChatDataSource by lazy {
-        Log.d(TAG, "Creating FirestoreChatDataSource")
         FirestoreChatDataSource(firestore)
     }
 
     val chatRepository: ChatRepository by lazy {
-        Log.d(TAG, "Creating ChatRepository")
         ChatRepositoryImpl(
             firestoreChatDataSource,
             database.chatMessageDao(),
-            database.userDao(),    // [FIX]: Added missing dependency
-            database.listingDao()  // [FIX]: Added missing dependency
+            database.userDao(),
+            database.listingDao(),
+            remoteListingRepository // Added remote listing repo for context fetching
         )
     }
 
     val favouriteRepository: FavouriteRepository by lazy {
-        Log.d(TAG, "Creating FavouriteRepository")
         FavouriteRepository(database.favouriteDao())
     }
 
     private val database: AppDatabase by lazy {
-        Log.d(TAG, "Initializing Room Database")
         AppDatabase.getDatabase(context)
     }
 
     fun initializeData() {
         applicationScope.launch(Dispatchers.IO) {
             try {
-                Log.d(TAG, "DEBUG: initializeData: Starting background tasks")
                 authRepository.signInAnonymously()
-                Log.d(TAG, "DEBUG: initializeData: Auth signed in as ${authRepository.getCurrentUserId()}")
-                
                 seedDatabase()
-                Log.d(TAG, "DEBUG: initializeData: Database seeded")
-                
-                // [PHASE 6]: Start the Real-Time Sync Bridge
-                // This ensures Room matches Firestore automatically for interactive data.
                 listingRepository.startRealTimeSync(applicationScope)
-                
                 performRemoteSync()
-                Log.d(TAG, "DEBUG: initializeData: Remote sync triggered")
             } catch (e: Exception) {
-                Log.e(TAG, "DEBUG: initializeData: Failed", e)
+                Log.e(TAG, "Initialization failed", e)
             }
         }
     }
@@ -121,12 +96,8 @@ class AppContainer(private val context: Context) {
             val lDao = database.listingDao()
             val userId = authRepository.getCurrentUserId() ?: "anonymous"
             val currentName = authRepository.getCurrentUserName() ?: "Anonymous"
-            val currentTime = System.currentTimeMillis()
+            uDao.insert(UserEntity(id = userId, name = currentName, email = "", createdAt = System.currentTimeMillis()))
 
-            Log.d(TAG, "DEBUG: Seeding user: $userId ($currentName)")
-            uDao.insert(UserEntity(id = userId, name = currentName, email = "", createdAt = currentTime))
-
-            // Seed Categories with Icons
             val categories = listOf(
                 CategoryEntity(id = "General", name = "General", icon = "📦"),
                 CategoryEntity(id = "Electronics", name = "Electronics", icon = "📱"),
@@ -135,26 +106,17 @@ class AppContainer(private val context: Context) {
                 CategoryEntity(id = "Toys", name = "Toys", icon = "🧸"),
                 CategoryEntity(id = "Books", name = "Books", icon = "📚")
             )
-            categories.forEach { category ->
-                lDao.insertCategory(category)
-            }
-
-            Log.d(TAG, "DEBUG: Database seeded successfully with ${categories.size} categories")
+            categories.forEach { lDao.insertCategory(it) }
         } catch (e: Exception) {
-            Log.e(TAG, "DEBUG: seedDatabase: Failed", e)
+            Log.e(TAG, "Seeding failed", e)
         }
     }
 
-    /**
-     * Generate sample listings for debugging.
-     */
     suspend fun generateSampleListings(count: Int = 5) {
         try {
             val userId = authRepository.getCurrentUserId() ?: "anonymous"
             val userName = authRepository.getCurrentUserName() ?: "Anonymous"
             val currentTime = System.currentTimeMillis()
-
-            Log.d(TAG, "DEBUG: Generating $count samples for User: $userId ($userName)")
 
             val sampleData = listOf(
                 Triple("iPhone 14 Pro", 899.99, "Electronics"),
@@ -169,36 +131,22 @@ class AppContainer(private val context: Context) {
                 val sample = sampleData[index % sampleData.size]
                 val listingEntity = com.example.tinycell.data.local.entity.ListingEntity(
                     id = java.util.UUID.randomUUID().toString(),
-                    title = sample.first,
-                    description = "Sample Listing #$index generated for validation",
-                    price = sample.second,
-                    userId = userId,
-                    sellerName = userName,
-                    categoryId = sample.third,
-                    location = "Cloud Sync Test",
-                    imageUrls = "",
-                    createdAt = currentTime - (index * 60000),
-                    isSold = false
+                    title = sample.first, description = "Sample Listing #$index",
+                    price = sample.second, userId = userId, sellerName = userName, categoryId = sample.third,
+                    location = "Cloud Sync Test", imageUrls = "", createdAt = currentTime - (index * 60000), isSold = false
                 )
-                
-                Log.d(TAG, "DEBUG: Pushing sample #$index to Repository (Dual-Write)...")
                 listingRepository.createListing(listingEntity)
             }
-
-            Log.d(TAG, "DEBUG: Successfully triggered generation of $count sample listings.")
-            
         } catch (e: Exception) {
-            Log.e(TAG, "DEBUG: generateSampleListings: Failed", e)
+            Log.e(TAG, "Sample generation failed", e)
         }
     }
 
     private suspend fun performRemoteSync() {
         try {
-            Log.d(TAG, "DEBUG: Starting remote sync to fetch Cloud data...")
             listingRepository.syncFromRemote()
-            Log.d(TAG, "DEBUG: Remote sync completed.")
         } catch (e: Exception) {
-            Log.e(TAG, "DEBUG: performRemoteSync: Failed", e)
+            Log.e(TAG, "Remote sync failed", e)
         }
     }
 }

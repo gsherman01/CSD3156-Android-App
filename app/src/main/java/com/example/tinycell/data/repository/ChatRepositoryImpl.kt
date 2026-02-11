@@ -20,13 +20,14 @@ import kotlinx.coroutines.withContext
 private const val TAG = "ChatRepositoryImpl"
 
 /**
- * Implementation of ChatRepository combining Firestore and local Room database.
+ * Implementation of ChatRepository with robust context fetching.
  */
 class ChatRepositoryImpl(
     private val firestoreChatDataSource: FirestoreChatDataSource,
     private val chatMessageDao: ChatMessageDao,
     private val userDao: UserDao,
-    private val listingDao: ListingDao
+    private val listingDao: ListingDao,
+    private val remoteListingRepository: RemoteListingRepository
 ) : ChatRepository {
 
     override suspend fun getOrCreateChatRoom(
@@ -36,23 +37,15 @@ class ChatRepositoryImpl(
         sellerId: String
     ): ChatRoom = withContext(Dispatchers.IO) {
         val chatRoomId = generateChatRoomId(listingId, buyerId, sellerId)
-        Log.d(TAG, "Getting or creating chat room: $chatRoomId")
-
         val existingRoom = firestoreChatDataSource.getChatRoom(chatRoomId)
         if (existingRoom != null) {
             return@withContext existingRoom.toDomain()
         }
 
         val newRoom = ChatRoomDto(
-            id = chatRoomId,
-            listingId = listingId,
-            buyerId = buyerId,
-            sellerId = sellerId,
-            listingTitle = listingTitle,
-            lastMessage = null,
-            lastMessageTimestamp = null
+            id = chatRoomId, listingId = listingId, buyerId = buyerId, sellerId = sellerId,
+            listingTitle = listingTitle, lastMessage = null, lastMessageTimestamp = null
         )
-
         firestoreChatDataSource.createOrUpdateChatRoom(newRoom)
         newRoom.toDomain()
     }
@@ -66,11 +59,7 @@ class ChatRepositoryImpl(
     }
 
     override suspend fun sendMessage(
-        chatRoomId: String,
-        senderId: String,
-        receiverId: String,
-        listingId: String,
-        message: String
+        chatRoomId: String, senderId: String, receiverId: String, listingId: String, message: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val timestamp = System.currentTimeMillis()
         val messageDto = ChatMessageDto(
@@ -84,7 +73,6 @@ class ChatRepositoryImpl(
             isRead = false,
             messageType = "TEXT"
         )
-
         val result = firestoreChatDataSource.sendMessage(messageDto)
         if (result.isSuccess) {
             firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, message, timestamp)
@@ -95,16 +83,10 @@ class ChatRepositoryImpl(
     }
 
     override suspend fun sendOfferMessage(
-        chatRoomId: String,
-        senderId: String,
-        receiverId: String,
-        listingId: String,
-        amount: Double,
-        offerId: String
+        chatRoomId: String, senderId: String, receiverId: String, listingId: String, amount: Double, offerId: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val timestamp = System.currentTimeMillis()
         val displayMessage = "Offered \$${amount}"
-        
         val messageDto = ChatMessageDto(
             id = "",
             chatRoomId = chatRoomId,
@@ -117,7 +99,6 @@ class ChatRepositoryImpl(
             offerId = offerId,
             messageType = "OFFER"
         )
-
         val result = firestoreChatDataSource.sendMessage(messageDto)
         if (result.isSuccess) {
             firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, displayMessage, timestamp)
@@ -135,13 +116,11 @@ class ChatRepositoryImpl(
     }
 
     override fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>> {
-        return firestoreChatDataSource.getChatRoomsForListing(listingId)
-            .map { dtos -> dtos.map { it.toDomain() } }
+        return firestoreChatDataSource.getChatRoomsForListing(listingId).map { dtos -> dtos.map { it.toDomain() } }
     }
 
     override fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>> {
-        return firestoreChatDataSource.getAllChatRoomsForUser(userId)
-            .map { dtos -> dtos.map { it.toDomain() } }
+        return firestoreChatDataSource.getAllChatRoomsForUser(userId).map { dtos -> dtos.map { it.toDomain() } }
     }
 
     override fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int> {
@@ -154,13 +133,9 @@ class ChatRepositoryImpl(
     }
 
     private suspend fun cacheMessages(messages: List<ChatMessageDto>) {
+        if (messages.isEmpty()) return
         try {
-            // [FIX]: Ensure Listing and Users exist in Room before caching chat messages
-            // to avoid FOREIGN KEY constraint failed (Error 787).
-            messages.firstOrNull()?.let { firstMsg ->
-                ensureContextExists(firstMsg.listingId, firstMsg.senderId, firstMsg.receiverId)
-            }
-            
+            ensureContextExists(messages.first().listingId, messages.first().senderId, messages.first().receiverId)
             val entities = messages.map { it.toEntity() }
             chatMessageDao.insertAll(entities)
         } catch (e: Exception) {
@@ -168,9 +143,6 @@ class ChatRepositoryImpl(
         }
     }
 
-    /**
-     * Ensures that the database integrity is maintained before inserting chat messages.
-     */
     private suspend fun ensureContextExists(listingId: String, senderId: String, receiverId: String) {
         // Ensure Users exist
         listOf(senderId, receiverId).forEach { uid ->
@@ -179,10 +151,15 @@ class ChatRepositoryImpl(
             }
         }
         
-        // Ensure Listing exists (Note: In a full implementation, we might fetch this from Firestore)
-        // For MVP, we check if it exists locally.
+        // Ensure Listing exists by fetching from remote if not in local DB
         if (listingDao.getListingById(listingId) == null) {
-            Log.w(TAG, "Listing $listingId missing from local DB. Chat message caching might still fail if FK is strict.")
+            try {
+                remoteListingRepository.getListingById(listingId)?.let { listingDto ->
+                    listingDao.insert(listingDto.toEntity())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch/cache missing listing $listingId: ${e.message}")
+            }
         }
     }
 }
