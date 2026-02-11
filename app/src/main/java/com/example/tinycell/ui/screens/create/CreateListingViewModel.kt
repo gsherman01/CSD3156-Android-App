@@ -1,10 +1,3 @@
-/*
-package com.example.tinycell.ui.screens.create
-
-import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-*/
 package com.example.tinycell.ui.screens.create
 
 import androidx.lifecycle.ViewModel
@@ -15,79 +8,43 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-
 /**
  * ViewModel for Creating a New Listing.
- * Handles form state and submission logic.
+ * Polished with strict validation and location support per UX Audit.
  */
 class CreateListingViewModel(private val repository: ListingRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreateListingUiState())
     val uiState: StateFlow<CreateListingUiState> = _uiState.asStateFlow()
 
-    /*
-    fun onTitleChange(newTitle: String) {
-        _uiState.value = _uiState.value.copy(title = newTitle)
-    }
-    */
-
     fun onTitleChange(value: String) {
-        _uiState.value = _uiState.value.copy(title = value)
+        _uiState.value = _uiState.value.copy(title = value, errorMessage = null)
     }
 
     fun onPriceChange(value: String) {
-        _uiState.value = _uiState.value.copy(price = value)
+        _uiState.value = _uiState.value.copy(price = value, errorMessage = null)
     }
 
     fun onDescriptionChange(value: String) {
-        _uiState.value = _uiState.value.copy(description = value)
+        _uiState.value = _uiState.value.copy(description = value, errorMessage = null)
+    }
+
+    fun onLocationChange(value: String) {
+        _uiState.value = _uiState.value.copy(location = value, errorMessage = null)
     }
 
     fun onCategoryChange(value: String) {
-        // Validate that the selection is part of the fixed choices
         if (_uiState.value.availableCategories.contains(value)) {
             _uiState.value = _uiState.value.copy(category = value)
         }
     }
 
-
-    /* OOLD OLD GRANDFATHER OLD
-    /**
-     * TODO: Camera Integrator Hook
-     * - Call this function when a photo is taken or selected from the gallery.
-     */
-    fun addImage(path: String) {
-        val currentList = _uiState.value.imagePaths.toMutableList()
-        currentList.add(path)
-        _uiState.value = _uiState.value.copy(imagePaths = currentList)
-    }
-
-    fun submitListing() {
-        viewModelScope.launch {
-            repository.saveListing(
-                name = _uiState.value.title,
-                imagePaths = _uiState.value.imagePaths
-            )
-            _uiState.value = _uiState.value.copy(isSubmitted = true)
-        }
-    }
-    */
-
-
-    /**
-     * [TODO_HARDWARE_INTEGRATION]:
-     * - ACTION: Camera lead to call this method with the final local file URI.
-     * - CONTEXT: Ensure URI is persistent (internal storage) before passing here.
-     */
     fun addImage(path: String) {
         val currentImages = _uiState.value.imagePaths.toMutableList()
         currentImages.add(path)
-        _uiState.value = _uiState.value.copy(imagePaths = currentImages)
+        _uiState.value = _uiState.value.copy(imagePaths = currentImages, errorMessage = null)
     }
 
-    /**
-     * Remove an image from the selection
-     */
     fun removeImage(path: String) {
         val currentImages = _uiState.value.imagePaths.toMutableList()
         currentImages.remove(path)
@@ -95,34 +52,39 @@ class CreateListingViewModel(private val repository: ListingRepository) : ViewMo
     }
 
     /**
-     * [TODO_DATABASE_INTEGRATION]:
-     * - ACTION: DB lead to verify ListingEntity constraints in AppDatabase.
-     *
-     * [TODO_NETWORKING_INTEGRATION]:
-     * - ACTION: Networking lead to implement WorkManager or Retrofit sync
-     *   after successful local Room insertion.
-     *
-     * [TODO_VALIDATION]:
-     * - ACTION: Add more complex validation (e.g., minimum character counts,
-     *   image count limits) as required by business logic.
+     * Enhanced submission logic with strict validation.
      */
     fun submit() {
         val currentState = _uiState.value
+        
+        // 1. Title Validation (Min 3 chars)
+        if (currentState.title.trim().length < 3) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Title must be at least 3 characters")
+            return
+        }
 
-        // Robust Parsing & Validation
+        // 2. Price Validation (> 0)
         val cleanedPrice = currentState.price.trim().replace("$", "")
         val priceDouble = cleanedPrice.toDoubleOrNull()
-
-        // Basic validation check before proceeding
-        if (currentState.title.isBlank()) {
-            _uiState.value = _uiState.value.copy(errorMessage = "Title cannot be empty")
+        if (priceDouble == null || priceDouble <= 0) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Please enter a valid price greater than 0")
             return
         }
 
-        if (priceDouble == null || priceDouble < 0) {
-            _uiState.value = _uiState.value.copy(errorMessage = "Please enter a valid price")
+        // 3. Description Validation (Min 10 chars)
+        if (currentState.description.trim().length < 10) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Description must be at least 10 characters")
             return
         }
+
+        // 4. Image Validation (At least 1)
+        if (currentState.imagePaths.isEmpty()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Please add at least one photo")
+            return
+        }
+
+        // If all valid, proceed to save
+        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
             try {
@@ -131,29 +93,23 @@ class CreateListingViewModel(private val repository: ListingRepository) : ViewMo
                     price = priceDouble,
                     description = currentState.description.trim(),
                     category = currentState.category,
-                    imagePaths = currentState.imagePaths
+                    imagePaths = currentState.imagePaths,
+                    location = currentState.location.trim().ifBlank { null }
                 )
-                _uiState.value = _uiState.value.copy(isSuccess = true, errorMessage = null)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    isSuccess = true,
+                    errorMessage = null
+                )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save: ${e.message}")
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Failed to save: ${e.message}"
+                )
             }
         }
-    }// end of submit function
-
-
-}// end of CreateListingViewModel class
-
-
-
-
-/*
-the old one
-data class CreateListingUiState(
-    val title: String = "",
-    val imagePaths: List<String> = emptyList(),
-    val isSubmitted: Boolean = false
-)
-*/
+    }
+}
 
 /**
  * UI State for the Create Listing screen.
@@ -162,44 +118,13 @@ data class CreateListingUiState(
     val title: String = "",
     val price: String = "",
     val description: String = "",
-    // LoL the hard coded part is tuck under here.
+    val location: String = "",
     val category: String = "General",
-    // Added fixed choices to prevent SQLite Error 787 (Foreign Key violation)
     val availableCategories: List<String> = listOf(
-        "General",
-        "Electronics",
-        "Fashion",
-        "Home",
-        "Toys",
-        "Books"
+        "General", "Electronics", "Fashion", "Home", "Toys", "Books"
     ),
-
     val imagePaths: List<String> = emptyList(),
+    val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val errorMessage: String? = null
-)// end of dataclass
-
-
-/* VERY SUPER OLD ..
-class CreateListingViewModel : ViewModel() {
-
-    private val _title = MutableStateFlow("")
-    val title: StateFlow<String> = _title
-
-    private val _price = MutableStateFlow("")
-    val price: StateFlow<String> = _price
-
-    fun onTitleChange(newValue: String) {
-        _title.value = newValue
-    }
-
-    fun onPriceChange(newValue: String) {
-        _price.value = newValue
-    }
-
-    fun submitListing() {
-        // TODO: Save listing to database
-    }
-}
-
-*/
+)
