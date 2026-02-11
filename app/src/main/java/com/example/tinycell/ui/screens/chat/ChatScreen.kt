@@ -1,6 +1,7 @@
 package com.example.tinycell.ui.screens.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -24,18 +26,22 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.tinycell.data.model.ChatMessage
+import com.example.tinycell.data.model.Listing
 import com.example.tinycell.data.repository.ChatRepository
 import com.example.tinycell.data.repository.ListingRepository
+import com.example.tinycell.ui.components.ListingStatusBadge
+import com.example.tinycell.ui.components.PriceTag
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
  * Chat Screen for messaging between buyer and seller.
- * Integrated with the Formal Offer System.
+ * Updated with a Contextual Product Header (Carousell style).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +71,6 @@ fun ChatScreen(
     val messageText by viewModel.messageText.collectAsState()
     val offerAmount by viewModel.offerAmount.collectAsState()
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) {
@@ -81,7 +86,6 @@ fun ChatScreen(
         }
     }
 
-    // Offer Dialog for Buyer
     if (uiState.showOfferDialog) {
         OfferInputDialog(
             amount = offerAmount,
@@ -94,16 +98,7 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text(text = otherUserName, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            text = listingTitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        )
-                    }
-                },
+                title = { Text(text = otherUserName, style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -126,36 +121,104 @@ fun ChatScreen(
             )
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            if (uiState.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(items = uiState.messages, key = { it.id }) { message ->
-                        if (message.messageType == "OFFER") {
-                            OfferCard(
-                                message = message,
-                                isCurrentUser = message.senderId == currentUserId,
-                                isSeller = uiState.isSeller,
-                                onAccept = { viewModel.acceptOffer(message.offerId ?: "") },
-                                onReject = { viewModel.rejectOffer(message.offerId ?: "") }
-                            )
-                        } else {
-                            MessageBubble(
-                                message = message,
-                                isCurrentUser = message.senderId == currentUserId
-                            )
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // Contextual Product Header
+            uiState.listing?.let { listing ->
+                ChatProductHeader(listing = listing)
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                if (uiState.isLoading && uiState.messages.isEmpty()) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(items = uiState.messages, key = { it.id }) { message ->
+                            if (message.messageType == "OFFER") {
+                                OfferCard(
+                                    message = message,
+                                    isCurrentUser = message.senderId == currentUserId,
+                                    isSeller = uiState.isSeller,
+                                    onAccept = { viewModel.acceptOffer(message.offerId ?: "") },
+                                    onReject = { viewModel.rejectOffer(message.offerId ?: "") }
+                                )
+                            } else {
+                                MessageBubble(
+                                    message = message,
+                                    isCurrentUser = message.senderId == currentUserId
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Product Header shown at the top of the chat to provide context.
+ */
+@Composable
+private fun ChatProductHeader(listing: Listing) {
+    Surface(
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Product Image Thumbnail
+            if (!listing.imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = listing.imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📷", fontSize = 20.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Product Details
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = listing.title,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PriceTag(
+                        price = listing.price,
+                        textStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    ListingStatusBadge(isSold = listing.isSold, status = listing.status)
+                }
+            }
+        }
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 @Composable
@@ -195,10 +258,6 @@ private fun OfferCard(
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
-    val alignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
-    
-    // We would ideally fetch the offer status from the Repository, 
-    // but for MVP we use the message text or a simplified state.
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalAlignment = if (isCurrentUser) Alignment.End else Alignment.Start
@@ -225,7 +284,6 @@ private fun OfferCard(
                     color = MaterialTheme.colorScheme.onTertiaryContainer
                 )
                 
-                // Only show buttons to the Seller if they received the offer
                 if (isSeller && !isCurrentUser) {
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -259,7 +317,6 @@ private fun ChatInputBar(
             modifier = Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Only Buyers can make offers
             if (!isSeller) {
                 IconButton(onClick = onOfferClick) {
                     Icon(Icons.Default.LocalOffer, "Make Offer", tint = MaterialTheme.colorScheme.primary)
@@ -310,9 +367,4 @@ private fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
 private fun formatTimestamp(timestamp: Long): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))
-}
-
-@Composable
-private fun EmptyChat(modifier: Modifier = Modifier) {
-    Text("No messages yet", modifier = modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 }

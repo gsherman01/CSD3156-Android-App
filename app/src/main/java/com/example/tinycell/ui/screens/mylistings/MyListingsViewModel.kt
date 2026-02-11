@@ -22,17 +22,26 @@ data class ListingWithChats(
 )
 
 /**
+ * Filter types for My Listings
+ */
+enum class ListingFilter {
+    ALL, AVAILABLE, SOLD
+}
+
+/**
  * UI State for My Listings Screen.
  */
 data class MyListingsUiState(
     val listings: List<ListingWithChats> = emptyList(),
+    val filteredListings: List<ListingWithChats> = emptyList(),
+    val currentFilter: ListingFilter = ListingFilter.ALL,
     val isLoading: Boolean = true,
     val error: String? = null
 )
 
 /**
  * ViewModel for My Listings Screen.
- * Shows seller's listings with chat room counts and unread message counts.
+ * Enhanced with management actions (Mark as Sold, Delete) and filtering.
  */
 class MyListingsViewModel(
     private val listingRepository: ListingRepository,
@@ -62,23 +71,17 @@ class MyListingsViewModel(
                     return@launch
                 }
 
-                // Get user's listings - collect as Flow
+                // Get user's listings
                 listingRepository.getListingsByUser(currentUserId).collect { listings ->
-                    // Process each listing to get chat stats
                     val listingsWithChats = mutableListOf<ListingWithChats>()
 
                     for (listing in listings) {
-                        // Get chat rooms for this listing (take first emission)
-                        val chatRooms = chatRepository.getChatRoomsForListing(listing.id)
-                            .first()
-
+                        val chatRooms = chatRepository.getChatRoomsForListing(listing.id).first()
                         val chatCount = chatRooms.size
 
-                        // Get unread count for each chat room
                         var totalUnread = 0
                         for (chatRoom in chatRooms) {
-                            val unreadCount = chatRepository.getUnreadCountForChatRoom(chatRoom.id, currentUserId)
-                                .first()
+                            val unreadCount = chatRepository.getUnreadCountForChatRoom(chatRoom.id, currentUserId).first()
                             totalUnread += unreadCount
                         }
 
@@ -95,12 +98,49 @@ class MyListingsViewModel(
                         listings = listingsWithChats,
                         isLoading = false
                     )
+                    applyFilter(_uiState.value.currentFilter)
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = "Failed to load listings: ${e.message}"
+                    error = "Failed to load: ${e.message}"
                 )
+            }
+        }
+    }
+
+    fun setFilter(filter: ListingFilter) {
+        _uiState.value = _uiState.value.copy(currentFilter = filter)
+        applyFilter(filter)
+    }
+
+    private fun applyFilter(filter: ListingFilter) {
+        val all = _uiState.value.listings
+        val filtered = when (filter) {
+            ListingFilter.ALL -> all
+            ListingFilter.AVAILABLE -> all.filter { !it.listing.isSold }
+            ListingFilter.SOLD -> all.filter { it.listing.isSold }
+        }
+        _uiState.value = _uiState.value.copy(filteredListings = filtered)
+    }
+
+    fun markAsSold(listingId: String) {
+        viewModelScope.launch {
+            try {
+                listingRepository.markListingAsSold(listingId)
+                // The flow collector will automatically refresh the list
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = "Failed to mark as sold: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteListing(listing: Listing) {
+        viewModelScope.launch {
+            try {
+                listingRepository.deleteListing(listing)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = "Failed to delete: ${e.message}")
             }
         }
     }
