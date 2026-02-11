@@ -32,7 +32,6 @@ class ListingRepository(
 
     /**
      * [OFFER_SYSTEM]: Make a new formal offer.
-     * [FIX]: Added id parameter to ensure consistency with Chat messages.
      */
     suspend fun makeOffer(listingId: String, amount: Double, offerId: String = java.util.UUID.randomUUID().toString()) = withContext(Dispatchers.IO) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
@@ -148,10 +147,30 @@ class ListingRepository(
         }
     }
 
-    suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>) {
+    /**
+     * Updated to support Location and improved validation flow.
+     */
+    suspend fun createNewListing(
+        title: String, 
+        price: Double, 
+        description: String, 
+        category: String, 
+        imagePaths: List<String>,
+        location: String? = null
+    ) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
-        val newListing = Listing(id = java.util.UUID.randomUUID().toString(), title = title, price = price, category = category, sellerId = currentUid, sellerName = currentName, description = description, imageUrl = imagePaths.joinToString(","))
+        val newListing = Listing(
+            id = java.util.UUID.randomUUID().toString(), 
+            title = title, 
+            price = price, 
+            category = category, 
+            sellerId = currentUid, 
+            sellerName = currentName, 
+            description = description, 
+            imageUrl = imagePaths.joinToString(","),
+            location = location
+        )
         createListing(newListing.toEntity(currentUid, currentName))
     }
 
@@ -207,6 +226,7 @@ private fun ListingEntity.toListing() = Listing(
     sellerName = sellerName,
     description = description,
     imageUrl = imageUrls.split(",").firstOrNull(),
+    location = location,
     isSold = isSold,
     status = status
 )
@@ -219,7 +239,7 @@ private fun Listing.toEntity(uid: String, sName: String) = ListingEntity(
     userId = uid,
     sellerName = sName,
     categoryId = category,
-    location = null,
+    location = location,
     imageUrls = imageUrl ?: "",
     createdAt = System.currentTimeMillis(),
     isSold = isSold,

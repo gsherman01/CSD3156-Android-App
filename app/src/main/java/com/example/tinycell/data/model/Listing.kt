@@ -2,17 +2,18 @@ package com.example.tinycell.data.model
 
 /**
  * Represents a marketplace listing.
- * Designed to support future expansion with images, descriptions, and seller details.
+ * Updated to include location for Carousell-like experience.
  */
 data class Listing(
     val id: String,
     val title: String,
     val price: Double,
     val category: String,
-    val sellerId: String,             // Seller's user ID for chat functionality
+    val sellerId: String,
     val sellerName: String,
-    val description: String? = null,  // Optional description for detail screen
-    val imageUrl: String? = null,     // Optional image URL (placeholder-ready for AsyncImage)
-    val isSold: Boolean = false,      // Listing sold status
-    val status: String = "AVAILABLE"  // AVAILABLE, PENDING (Under Offer), SOLD
+    val description: String? = null,
+    val imageUrl: String? = null,
+    val location: String? = null,    // Added location field
+    val isSold: Boolean = false,
+    val status: String = "AVAILABLE"
 )
