@@ -1,8 +1,9 @@
 package com.example.tinycell.ui.screens.myfavorites
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -20,7 +21,7 @@ import com.example.tinycell.data.repository.FavouriteRepository
 import com.example.tinycell.ui.components.ListingCard
 
 /**
- * My Favorites Screen - Shows user's favorited listings.
+ * My Favorites Screen - Updated to 2-column grid.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,9 +67,7 @@ fun MyFavoritesScreen(
         when {
             isLoading -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
@@ -77,34 +76,23 @@ fun MyFavoritesScreen(
 
             listings.isEmpty() -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "No favorites yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Tap the heart icon on listings to save them here",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("No favorites yet", style = MaterialTheme.typography.bodyLarge)
+                        Text("Tap the heart icon on listings to save them here", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
 
             else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
+                    contentPadding = PaddingValues(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(
                         items = listings,
@@ -113,7 +101,7 @@ fun MyFavoritesScreen(
                         ListingCard(
                             listing = listing,
                             onClick = { onNavigateToDetail(listing.id) },
-                            isFavourited = true, // All items here are favorites
+                            isFavourited = true,
                             onFavouriteClick = { viewModel.removeFavorite(listing.id) }
                         )
                     }

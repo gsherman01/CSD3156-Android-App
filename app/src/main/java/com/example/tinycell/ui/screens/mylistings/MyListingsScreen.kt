@@ -3,9 +3,11 @@ package com.example.tinycell.ui.screens.mylistings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,7 +35,7 @@ import com.example.tinycell.ui.components.PriceTag
 import com.example.tinycell.ui.components.ListingStatusBadge
 
 /**
- * My Listings Screen - Seller Management with filters and actions.
+ * My Listings Screen - Updated to 2-column grid.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,7 +74,6 @@ fun MyListingsScreen(
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Filter Chips
             FilterRow(
                 currentFilter = uiState.currentFilter,
                 onFilterSelected = { viewModel.setFilter(it) }
@@ -84,13 +85,15 @@ fun MyListingsScreen(
                 } else if (uiState.filteredListings.isEmpty()) {
                     EmptyState()
                 } else {
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(uiState.filteredListings) { item ->
-                            ListingWithChatsCard(
+                            MyListingCard(
                                 listingWithChats = item,
                                 onClick = { onNavigateToListingChats(item.listing.id, item.listing.title) },
                                 onMarkAsSold = { viewModel.markAsSold(item.listing.id) },
@@ -105,26 +108,22 @@ fun MyListingsScreen(
 }
 
 @Composable
-private fun FilterRow(
-    currentFilter: ListingFilter,
-    onFilterSelected: (ListingFilter) -> Unit
-) {
+private fun FilterRow(currentFilter: ListingFilter, onFilterSelected: (ListingFilter) -> Unit) {
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(ListingFilter.values()) { filter ->
-            FilterChip(
-                selected = currentFilter == filter,
-                onClick = { onFilterSelected(filter) },
-                label = { Text(filter.name.lowercase().capitalize()) }
-            )
+            FilterChip(selected = currentFilter == filter, onClick = { onFilterSelected(filter) }, label = { Text(filter.name) })
         }
     }
 }
 
+/**
+ * A compact card for the 2-column My Listings grid.
+ */
 @Composable
-private fun ListingWithChatsCard(
+private fun MyListingCard(
     listingWithChats: ListingWithChats,
     onClick: () -> Unit,
     onMarkAsSold: () -> Unit,
@@ -132,58 +131,44 @@ private fun ListingWithChatsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Thumbnail
+        Column {
+            Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
                 if (!listingWithChats.listing.imageUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = listingWithChats.listing.imageUrl,
-                        contentDescription = null,
-                        modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                    AsyncImage(model = listingWithChats.listing.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
-                    Box(modifier = Modifier.size(60.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                        Text("📷")
-                    }
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { Text("📷") }
                 }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = listingWithChats.listing.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-                    PriceTag(price = listingWithChats.listing.price)
-                    ListingStatusBadge(isSold = listingWithChats.listing.isSold, status = listingWithChats.listing.status)
-                }
-
-                // Chat stats
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    BadgedBox(badge = { if (listingWithChats.totalUnreadCount > 0) Badge { Text("${listingWithChats.totalUnreadCount}") } }) {
-                        Icon(Icons.Default.Chat, "Chats", tint = MaterialTheme.colorScheme.primary)
-                    }
+                ListingStatusBadge(isSold = listingWithChats.listing.isSold, status = listingWithChats.listing.status)
+            }
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(text = listingWithChats.listing.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                PriceTag(price = listingWithChats.listing.price)
+                
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    Icon(Icons.Default.Chat, "Chats", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("${listingWithChats.chatCount} chats", style = MaterialTheme.typography.labelSmall)
+                    if (listingWithChats.totalUnreadCount > 0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Badge { Text("${listingWithChats.totalUnreadCount}") }
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Action Buttons
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            HorizontalDivider()
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 if (!listingWithChats.listing.isSold) {
-                    TextButton(onClick = onMarkAsSold) {
-                        Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
+                    TextButton(onClick = onMarkAsSold, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Mark as Sold")
+                        Text("Sell", fontSize = 12.sp)
                     }
                 }
-                TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                    Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp))
+                TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Delete")
+                    Text("Delete", fontSize = 12.sp)
                 }
             }
         }

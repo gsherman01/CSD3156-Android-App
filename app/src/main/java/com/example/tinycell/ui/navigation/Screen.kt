@@ -5,7 +5,6 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 /**
- * [NAV_ROUTE_DOCUMENTATION]
  * Sealed class defining all available routes in the app.
  */
 sealed class Screen(val route: String) {
@@ -29,11 +28,8 @@ sealed class Screen(val route: String) {
             return "chat/$chatRoomId/$listingId/$encodedTitle/$otherUserId/$encodedName"
         }
 
-        fun decodeTitle(encoded: String): String =
-            URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
-
-        fun decodeName(encoded: String): String =
-            URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+        fun decodeTitle(encoded: String): String = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+        fun decodeName(encoded: String): String = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
     }
 
     object MyListings : Screen("my_listings")
@@ -44,8 +40,15 @@ sealed class Screen(val route: String) {
             val encodedTitle = URLEncoder.encode(listingTitle, StandardCharsets.UTF_8.toString())
             return "listing_chats/$listingId/$encodedTitle"
         }
+        fun decodeTitle(encoded: String): String = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+    }
 
-        fun decodeTitle(encoded: String): String =
-            URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+    // [NEW]: Public Profile route
+    object PublicProfile : Screen("public_profile/{userId}/{userName}") {
+        fun createRoute(userId: String, userName: String): String {
+            val encodedName = URLEncoder.encode(userName, StandardCharsets.UTF_8.toString())
+            return "public_profile/$userId/$encodedName"
+        }
+        fun decodeName(encoded: String): String = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
     }
 }

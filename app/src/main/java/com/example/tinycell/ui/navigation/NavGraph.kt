@@ -18,6 +18,7 @@ import com.example.tinycell.ui.screens.listingchats.ListingChatsScreen
 import com.example.tinycell.ui.screens.myfavorites.MyFavoritesScreen
 import com.example.tinycell.ui.screens.mylistings.MyListingsScreen
 import com.example.tinycell.ui.screens.profile.ProfileScreen
+import com.example.tinycell.ui.screens.publicprofile.PublicProfileScreen
 
 @Composable
 fun TinyCellNavHost(
@@ -32,161 +33,105 @@ fun TinyCellNavHost(
         navController = navController,
         startDestination = startDestination
     ) {
-        // Main Marketplace View
         composable(Screen.Home.route) {
             HomeScreen(
-                onNavigateToDetail = { listingId ->
-                    navController.navigate(Screen.ListingDetail.createRoute(listingId))
-                },
-                onNavigateToCreate = {
-                    navController.navigate(Screen.CreateListing.route)
-                },
-                onNavigateToMyFavorites = {
-                    navController.navigate(Screen.MyFavorites.route)
-                },
+                onNavigateToDetail = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
+                onNavigateToCreate = { navController.navigate(Screen.CreateListing.route) },
+                onNavigateToMyFavorites = { navController.navigate(Screen.MyFavorites.route) },
                 listingRepository = listingRepository,
                 favouriteRepository = appContainer.favouriteRepository,
                 authRepository = authRepository
             )
         }
 
-        // Feature: Create New Listing
         composable(Screen.CreateListing.route) {
-            CreateListingScreen(
-                repository = listingRepository,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
+            CreateListingScreen(repository = listingRepository, onNavigateBack = { navController.popBackStack() })
         }
 
-        // Feature: Listing Details
         composable(Screen.ListingDetail.route) { backStackEntry ->
             val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
             ListingDetailScreen(
-                listingId = listingId,
-                repository = listingRepository,
-                authRepository = authRepository,
-                chatRepository = chatRepository,
-                favouriteRepository = appContainer.favouriteRepository,
-                onNavigateBack = {
-                    navController.popBackStack()
+                listingId = listingId, repository = listingRepository, authRepository = authRepository,
+                chatRepository = chatRepository, favouriteRepository = appContainer.favouriteRepository,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToChat = { chatRoomId, lId, title, otherUserId, otherUserName ->
+                    navController.navigate(Screen.Chat.createRoute(chatRoomId, lId, title, otherUserId, otherUserName))
                 },
-                onNavigateToChat = { chatRoomId, lId, listingTitle, otherUserId, otherUserName ->
-                    navController.navigate(
-                        Screen.Chat.createRoute(chatRoomId, lId, listingTitle, otherUserId, otherUserName)
-                    )
+                // Add navigation to seller profile if needed in the screen
+                onNavigateToPublicProfile = { userId, userName ->
+                    navController.navigate(Screen.PublicProfile.createRoute(userId, userName))
                 }
             )
         }
 
-        // Feature: User Profile & Admin Debug
         composable(Screen.Profile.route) {
             ProfileScreen(
                 authRepository = authRepository,
-                onNavigateToMyListings = {
-                    navController.navigate(Screen.MyListings.route)
-                },
+                onNavigateToMyListings = { navController.navigate(Screen.MyListings.route) },
                 appContainer = appContainer
             )
         }
 
-        // Feature: All Chats (Bottom Nav Destination)
         composable(Screen.AllChats.route) {
             AllChatsScreen(
-                chatRepository = chatRepository,
-                authRepository = authRepository,
-                onNavigateToChat = { chatRoomId, listingId, listingTitle, otherUserId, otherUserName ->
-                    navController.navigate(
-                        Screen.Chat.createRoute(chatRoomId, listingId, listingTitle, otherUserId, otherUserName)
-                    )
+                chatRepository = chatRepository, authRepository = authRepository,
+                onNavigateToChat = { chatRoomId, lId, title, otherUserId, otherUserName ->
+                    navController.navigate(Screen.Chat.createRoute(chatRoomId, lId, title, otherUserId, otherUserName))
                 }
             )
         }
 
-        composable("camera") {
-            CameraScreen()
-        }
-
-        // Feature: Chat
         composable(Screen.Chat.route) { backStackEntry ->
             val chatRoomId = backStackEntry.arguments?.getString("chatRoomId") ?: ""
             val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
-            val listingTitle = backStackEntry.arguments?.getString("listingTitle")?.let {
-                Screen.Chat.decodeTitle(it)
-            } ?: ""
+            val listingTitle = backStackEntry.arguments?.getString("listingTitle")?.let { Screen.Chat.decodeTitle(it) } ?: ""
             val otherUserId = backStackEntry.arguments?.getString("otherUserId") ?: ""
-            val otherUserName = backStackEntry.arguments?.getString("otherUserName")?.let {
-                Screen.Chat.decodeName(it)
-            } ?: ""
-            val currentUserId = authRepository.getCurrentUserId() ?: ""
-
+            val otherUserName = backStackEntry.arguments?.getString("otherUserName")?.let { Screen.Chat.decodeName(it) } ?: ""
             ChatScreen(
-                chatRoomId = chatRoomId,
-                listingId = listingId,
-                listingTitle = listingTitle,
-                otherUserId = otherUserId,
-                otherUserName = otherUserName,
-                currentUserId = currentUserId,
-                chatRepository = chatRepository,
-                listingRepository = listingRepository, // [FIX]: Added missing dependency
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
+                chatRoomId = chatRoomId, listingId = listingId, listingTitle = listingTitle,
+                otherUserId = otherUserId, otherUserName = otherUserName,
+                currentUserId = authRepository.getCurrentUserId() ?: "",
+                chatRepository = chatRepository, listingRepository = listingRepository,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
-        // Feature: My Listings (Seller View)
         composable(Screen.MyListings.route) {
             MyListingsScreen(
-                listingRepository = listingRepository,
-                chatRepository = chatRepository,
-                authRepository = authRepository,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToListingChats = { listingId, listingTitle ->
-                    navController.navigate(
-                        Screen.ListingChats.createRoute(listingId, listingTitle)
-                    )
-                }
+                listingRepository = listingRepository, chatRepository = chatRepository, authRepository = authRepository,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToListingChats = { lId, title -> navController.navigate(Screen.ListingChats.createRoute(lId, title)) }
             )
         }
 
-        // Feature: My Favorites (User's saved listings)
         composable(Screen.MyFavorites.route) {
             MyFavoritesScreen(
-                favouriteRepository = appContainer.favouriteRepository,
-                authRepository = authRepository,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToDetail = { listingId ->
-                    navController.navigate(Screen.ListingDetail.createRoute(listingId))
+                favouriteRepository = appContainer.favouriteRepository, authRepository = authRepository,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) }
+            )
+        }
+
+        composable(Screen.ListingChats.route) { backStackEntry ->
+            val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
+            val listingTitle = backStackEntry.arguments?.getString("listingTitle")?.let { Screen.ListingChats.decodeTitle(it) } ?: ""
+            ListingChatsScreen(
+                listingId = listingId, listingTitle = listingTitle, chatRepository = chatRepository, authRepository = authRepository,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToChat = { chatRoomId, lId, title, otherUserId, otherUserName ->
+                    navController.navigate(Screen.Chat.createRoute(chatRoomId, lId, title, otherUserId, otherUserName))
                 }
             )
         }
 
-        // Feature: Listing Chats (All chats for a specific listing)
-        composable(Screen.ListingChats.route) { backStackEntry ->
-            val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
-            val listingTitle = backStackEntry.arguments?.getString("listingTitle")?.let {
-                Screen.ListingChats.decodeTitle(it)
-            } ?: ""
-
-            ListingChatsScreen(
-                listingId = listingId,
-                listingTitle = listingTitle,
-                chatRepository = chatRepository,
-                authRepository = authRepository,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToChat = { chatRoomId, lId, lTitle, otherUserId, otherUserName ->
-                    navController.navigate(
-                        Screen.Chat.createRoute(chatRoomId, lId, lTitle, otherUserId, otherUserName)
-                    )
-                }
+        // [NEW]: Public Profile Screen Registration
+        composable(Screen.PublicProfile.route) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            val userName = backStackEntry.arguments?.getString("userName")?.let { Screen.PublicProfile.decodeName(it) } ?: ""
+            PublicProfileScreen(
+                userId = userId, userName = userName, listingRepository = listingRepository,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) }
             )
         }
     }
