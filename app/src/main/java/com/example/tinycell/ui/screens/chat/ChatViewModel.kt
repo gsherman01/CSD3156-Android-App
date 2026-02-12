@@ -13,7 +13,7 @@ import java.util.UUID
 
 /**
  * ViewModel for the Chat screen.
- * Enhanced to track offer results (ACCEPTED/REJECTED).
+ * [FIXED]: Correct buyer identification, guidance text logic, and one-time review check.
  */
 class ChatViewModel(
     private val chatRepository: ChatRepository,
@@ -41,112 +41,106 @@ class ChatViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
 
-            // 1. Observe Listing
             val listingFlow = listingRepository.getListingFlow(listingId)
-            
-            // 2. Observe Messages
             val messagesFlow = chatRepository.getMessagesFlow(chatRoomId)
-            
-            // 3. Observe Offers for this listing to get real-time results (ACCEPTED/REJECTED)
             val offersFlow = listingRepository.getOffersForListing(listingId)
+            
+            // Observe if the current user has already reviewed this transaction
+            val reviewFlow = listingRepository.getReviewForTransaction(currentUserId, listingId)
 
-            combine(listingFlow, messagesFlow, offersFlow) { listing, messages, offers ->
-                // Map offer ID to its status
+            combine(listingFlow, messagesFlow, offersFlow, reviewFlow) { listing, messages, offers, existingReview ->
                 val statuses = offers.associate { it.id to it.status }
+                val isSeller = listing?.sellerId == currentUserId
                 
-                // Find the latest offer from the buyer
+                // [FIX]: The buyer is the person who is NOT the listing creator (seller)
+                // In our model, listing.sellerId is the creator.
+                val sellerId = listing?.sellerId ?: ""
+                val buyerId = if (isSeller) otherUserId else currentUserId
+                
+                // An offer is ACTIVE if it is the latest one sent by the buyer
                 val latestOffer = messages
-                    .filter { it.messageType == "OFFER" && it.senderId == otherUserId }
+                    .filter { it.messageType == "OFFER" && it.senderId == buyerId }
                     .maxByOrNull { it.timestamp }
 
                 _uiState.value = _uiState.value.copy(
                     messages = messages,
                     listing = listing,
-                    isSeller = listing?.sellerId == currentUserId,
+                    isSeller = isSeller,
                     activeOfferId = latestOffer?.offerId,
                     offerStatuses = statuses,
+                    hasReviewed = existingReview != null, // Reactive check for review
                     isLoading = false
                 )
             }.collect()
         }
     }
 
-    fun onMessageTextChanged(text: String) {
-        _messageText.value = text
-    }
+    fun onMessageTextChanged(text: String) { _messageText.value = text }
 
     fun sendMessage() {
         if (_messageText.value.isBlank()) return
         viewModelScope.launch {
-            chatRepository.sendMessage(
-                chatRoomId = chatRoomId,
-                senderId = currentUserId,
-                receiverId = otherUserId,
-                listingId = listingId,
-                message = _messageText.value.trim()
-            )
+            chatRepository.sendMessage(chatRoomId, currentUserId, otherUserId, listingId, _messageText.value.trim())
             _messageText.value = ""
         }
     }
 
-    fun sendOffer() {
-        val amount = _offerAmount.value.toDoubleOrNull()
-        if (amount == null || amount <= 0) {
-            _uiState.value = _uiState.value.copy(error = "Invalid offer amount")
-            return
+    fun sendImage(imagePath: String) {
+        viewModelScope.launch {
+            try {
+                chatRepository.sendImageMessage(chatRoomId, currentUserId, otherUserId, listingId, imagePath)
+            } catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to send image") }
         }
-        
+    }
+
+    fun sendOffer() {
+        val amount = _offerAmount.value.toDoubleOrNull() ?: return
         viewModelScope.launch {
             try {
                 val offerId = UUID.randomUUID().toString()
                 listingRepository.makeOffer(listingId, amount, offerId)
-                chatRepository.sendOfferMessage(
-                    chatRoomId = chatRoomId,
-                    senderId = currentUserId,
-                    receiverId = otherUserId,
-                    listingId = listingId,
-                    amount = amount,
-                    offerId = offerId
-                )
+                chatRepository.sendOfferMessage(chatRoomId, currentUserId, otherUserId, listingId, amount, offerId)
                 toggleOfferDialog(false)
                 _offerAmount.value = ""
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message)
-            }
+            } catch (e: Exception) { _uiState.value = _uiState.value.copy(error = e.message) }
         }
     }
 
     fun acceptOffer(offerId: String) {
         viewModelScope.launch {
+            try { listingRepository.acceptOffer(offerId) }
+            catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to accept") }
+        }
+    }
+
+    fun markAsSold() {
+        viewModelScope.launch {
+            try { listingRepository.completeTransaction(listingId) }
+            catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to mark sold") }
+        }
+    }
+
+    fun submitReview(rating: Int, comment: String) {
+        val role = if (_uiState.value.isSeller) "BUYER" else "SELLER"
+        viewModelScope.launch {
             try {
-                listingRepository.acceptOffer(offerId)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = "Failed to accept offer: ${e.message}")
-            }
+                listingRepository.submitReview(listingId, currentUserId, otherUserId, rating, comment, role)
+                _uiState.value = _uiState.value.copy(showReviewDialog = false)
+            } catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to submit review") }
         }
     }
 
     fun rejectOffer(offerId: String) {
         viewModelScope.launch {
-            try {
-                listingRepository.rejectOffer(offerId)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = "Failed to reject offer: ${e.message}")
-            }
+            try { listingRepository.rejectOffer(offerId) }
+            catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to reject") }
         }
     }
 
-    fun onOfferAmountChanged(text: String) {
-        _offerAmount.value = text
-    }
-
-    fun toggleOfferDialog(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showOfferDialog = show)
-    }
-
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
-    }
+    fun toggleOfferDialog(show: Boolean) { _uiState.value = _uiState.value.copy(showOfferDialog = show) }
+    fun toggleReviewDialog(show: Boolean) { _uiState.value = _uiState.value.copy(showReviewDialog = show) }
+    fun onOfferAmountChanged(text: String) { _offerAmount.value = text }
+    fun clearError() { _uiState.value = _uiState.value.copy(error = null) }
 }
 
 data class ChatUiState(
@@ -155,9 +149,11 @@ data class ChatUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
     val isSeller: Boolean = false,
+    val hasReviewed: Boolean = false,
     val showOfferDialog: Boolean = false,
+    val showReviewDialog: Boolean = false,
     val activeOfferId: String? = null,
-    val offerStatuses: Map<String, String> = emptyMap() // Track status of each offer
+    val offerStatuses: Map<String, String> = emptyMap()
 )
 
 class ChatViewModelFactory(
@@ -169,17 +165,6 @@ class ChatViewModelFactory(
     private val otherUserId: String
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ChatViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return ChatViewModel(
-                chatRepository,
-                listingRepository,
-                chatRoomId,
-                listingId,
-                currentUserId,
-                otherUserId
-            ) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
+        return ChatViewModel(chatRepository, listingRepository, chatRoomId, listingId, currentUserId, otherUserId) as T
     }
 }

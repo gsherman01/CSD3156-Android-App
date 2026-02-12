@@ -46,12 +46,13 @@ class AppContainer(private val context: Context) {
 
     val listingRepository: ListingRepository by lazy {
         ListingRepository(
-            database.listingDao(),
-            database.userDao(),
-            database.offerDao(),
-            remoteListingRepository,
-            remoteImageRepository,
-            authRepository
+            listingDao = database.listingDao(),
+            userDao = database.userDao(),
+            offerDao = database.offerDao(),
+            reviewDao = database.reviewDao(), // Added reviewDao
+            remoteRepo = remoteListingRepository,
+            imageRepo = remoteImageRepository,
+            authRepo = authRepository
         )
     }
 
@@ -61,11 +62,12 @@ class AppContainer(private val context: Context) {
 
     val chatRepository: ChatRepository by lazy {
         ChatRepositoryImpl(
-            firestoreChatDataSource,
-            database.chatMessageDao(),
-            database.userDao(),
-            database.listingDao(),
-            remoteListingRepository // Added remote listing repo for context fetching
+            firestoreChatDataSource = firestoreChatDataSource,
+            chatMessageDao = database.chatMessageDao(),
+            userDao = database.userDao(),
+            listingDao = database.listingDao(),
+            remoteListingRepository = remoteListingRepository,
+            remoteImageRepository = remoteImageRepository // Added remoteImageRepository
         )
     }
 
@@ -133,7 +135,8 @@ class AppContainer(private val context: Context) {
                     id = java.util.UUID.randomUUID().toString(),
                     title = sample.first, description = "Sample Listing #$index",
                     price = sample.second, userId = userId, sellerName = userName, categoryId = sample.third,
-                    location = "Cloud Sync Test", imageUrls = "", createdAt = currentTime - (index * 60000), isSold = false
+                    location = "Cloud Sync Test", imageUrls = "", createdAt = currentTime - (index * 60000),
+                    isSold = false, status = "AVAILABLE"
                 )
                 listingRepository.createListing(listingEntity)
             }

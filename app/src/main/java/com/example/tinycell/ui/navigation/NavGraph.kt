@@ -2,7 +2,6 @@ package com.example.tinycell.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.tinycell.data.repository.AuthRepository
@@ -38,6 +37,7 @@ fun TinyCellNavHost(
                 onNavigateToDetail = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
                 onNavigateToCreate = { navController.navigate(Screen.CreateListing.route) },
                 onNavigateToMyFavorites = { navController.navigate(Screen.MyFavorites.route) },
+                onNavigateToPublicProfile = { userId, userName -> navController.navigate(Screen.PublicProfile.createRoute(userId, userName)) },
                 listingRepository = listingRepository,
                 favouriteRepository = appContainer.favouriteRepository,
                 authRepository = authRepository
@@ -57,7 +57,6 @@ fun TinyCellNavHost(
                 onNavigateToChat = { chatRoomId, lId, title, otherUserId, otherUserName ->
                     navController.navigate(Screen.Chat.createRoute(chatRoomId, lId, title, otherUserId, otherUserName))
                 },
-                // Add navigation to seller profile if needed in the screen
                 onNavigateToPublicProfile = { userId, userName ->
                     navController.navigate(Screen.PublicProfile.createRoute(userId, userName))
                 }
@@ -92,7 +91,10 @@ fun TinyCellNavHost(
                 otherUserId = otherUserId, otherUserName = otherUserName,
                 currentUserId = authRepository.getCurrentUserId() ?: "",
                 chatRepository = chatRepository, listingRepository = listingRepository,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToPublicProfile = { userId, userName ->
+                    navController.navigate(Screen.PublicProfile.createRoute(userId, userName))
+                }
             )
         }
 
@@ -124,7 +126,6 @@ fun TinyCellNavHost(
             )
         }
 
-        // [NEW]: Public Profile Screen Registration
         composable(Screen.PublicProfile.route) { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
             val userName = backStackEntry.arguments?.getString("userName")?.let { Screen.PublicProfile.decodeName(it) } ?: ""

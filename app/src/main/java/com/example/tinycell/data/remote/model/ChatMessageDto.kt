@@ -6,7 +6,7 @@ import com.google.firebase.firestore.PropertyName
 
 /**
  * Data Transfer Object for Firestore chat messages.
- * Updated with PropertyName annotations to handle Boolean naming mismatches.
+ * Updated to support Image messages.
  */
 data class ChatMessageDto(
     @get:PropertyName("id") @set:PropertyName("id")
@@ -30,12 +30,14 @@ data class ChatMessageDto(
     @get:PropertyName("timestamp") @set:PropertyName("timestamp")
     var timestamp: Long = System.currentTimeMillis(),
     
-    // [FIX]: Explicitly map 'read' from Firestore to 'isRead' in Kotlin
     @get:PropertyName("read") @set:PropertyName("read")
     var isRead: Boolean = false,
     
     @get:PropertyName("offerId") @set:PropertyName("offerId")
     var offerId: String? = null,
+    
+    @get:PropertyName("imageUrl") @set:PropertyName("imageUrl")
+    var imageUrl: String? = null, // Added for image support
     
     @get:PropertyName("messageType") @set:PropertyName("messageType")
     var messageType: String = "TEXT"
@@ -51,6 +53,7 @@ fun ChatMessageDto.toEntity() = ChatMessageEntity(
     timestamp = timestamp,
     isRead = isRead,
     offerId = offerId,
+    imageUrl = imageUrl,
     messageType = messageType
 )
 
@@ -64,6 +67,7 @@ fun ChatMessageEntity.toDto() = ChatMessageDto(
     timestamp = timestamp,
     isRead = isRead,
     offerId = offerId,
+    imageUrl = imageUrl,
     messageType = messageType
 )
 
@@ -77,5 +81,6 @@ fun ChatMessageDto.toDomain() = ChatMessage(
     timestamp = timestamp,
     isRead = isRead,
     offerId = offerId,
+    imageUrl = imageUrl,
     messageType = messageType
 )

@@ -20,27 +20,23 @@ import kotlinx.coroutines.withContext
 private const val TAG = "ChatRepositoryImpl"
 
 /**
- * Implementation of ChatRepository with robust context fetching.
+ * Implementation of ChatRepository with support for Images and Context.
  */
 class ChatRepositoryImpl(
     private val firestoreChatDataSource: FirestoreChatDataSource,
     private val chatMessageDao: ChatMessageDao,
     private val userDao: UserDao,
     private val listingDao: ListingDao,
-    private val remoteListingRepository: RemoteListingRepository
+    private val remoteListingRepository: RemoteListingRepository,
+    private val remoteImageRepository: RemoteImageRepository // Added for image support
 ) : ChatRepository {
 
     override suspend fun getOrCreateChatRoom(
-        listingId: String,
-        listingTitle: String,
-        buyerId: String,
-        sellerId: String
+        listingId: String, listingTitle: String, buyerId: String, sellerId: String
     ): ChatRoom = withContext(Dispatchers.IO) {
         val chatRoomId = generateChatRoomId(listingId, buyerId, sellerId)
         val existingRoom = firestoreChatDataSource.getChatRoom(chatRoomId)
-        if (existingRoom != null) {
-            return@withContext existingRoom.toDomain()
-        }
+        if (existingRoom != null) return@withContext existingRoom.toDomain()
 
         val newRoom = ChatRoomDto(
             id = chatRoomId, listingId = listingId, buyerId = buyerId, sellerId = sellerId,
@@ -51,11 +47,10 @@ class ChatRepositoryImpl(
     }
 
     override fun getMessagesFlow(chatRoomId: String): Flow<List<ChatMessage>> {
-        return firestoreChatDataSource.getMessagesFlow(chatRoomId)
-            .map { dtos ->
-                cacheMessages(dtos)
-                dtos.map { it.toDomain() }
-            }
+        return firestoreChatDataSource.getMessagesFlow(chatRoomId).map { dtos ->
+            cacheMessages(dtos)
+            dtos.map { it.toDomain() }
+        }
     }
 
     override suspend fun sendMessage(
@@ -63,22 +58,41 @@ class ChatRepositoryImpl(
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val timestamp = System.currentTimeMillis()
         val messageDto = ChatMessageDto(
-            id = "",
-            chatRoomId = chatRoomId,
-            senderId = senderId,
-            receiverId = receiverId,
-            listingId = listingId,
-            message = message,
-            timestamp = timestamp,
-            isRead = false,
-            messageType = "TEXT"
+            id = "", chatRoomId = chatRoomId, senderId = senderId, receiverId = receiverId,
+            listingId = listingId, message = message, timestamp = timestamp, isRead = false, messageType = "TEXT"
         )
         val result = firestoreChatDataSource.sendMessage(messageDto)
         if (result.isSuccess) {
             firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, message, timestamp)
             Result.success(Unit)
-        } else {
-            Result.failure(result.exceptionOrNull() ?: Exception("Unknown error"))
+        } else Result.failure(result.exceptionOrNull() ?: Exception("Unknown error"))
+    }
+
+    /**
+     * [PHASE 7]: Uploads an image and sends it as a chat message.
+     */
+    override suspend fun sendImageMessage(
+        chatRoomId: String, senderId: String, receiverId: String, listingId: String, imagePath: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            // 1. Upload image to Storage
+            val uploadResult = remoteImageRepository.uploadImages(listOf(imagePath))
+            val imageUrl = uploadResult.getOrThrow().first()
+
+            // 2. Send IMAGE type message to Firestore
+            val timestamp = System.currentTimeMillis()
+            val messageDto = ChatMessageDto(
+                id = "", chatRoomId = chatRoomId, senderId = senderId, receiverId = receiverId,
+                listingId = listingId, message = "📷 Image", timestamp = timestamp,
+                isRead = false, imageUrl = imageUrl, messageType = "IMAGE"
+            )
+            val result = firestoreChatDataSource.sendMessage(messageDto)
+            if (result.isSuccess) {
+                firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, "📷 Image", timestamp)
+                Result.success(Unit)
+            } else Result.failure(result.exceptionOrNull() ?: Exception("Failed to send image message"))
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -88,24 +102,15 @@ class ChatRepositoryImpl(
         val timestamp = System.currentTimeMillis()
         val displayMessage = "Offered \$${amount}"
         val messageDto = ChatMessageDto(
-            id = "",
-            chatRoomId = chatRoomId,
-            senderId = senderId,
-            receiverId = receiverId,
-            listingId = listingId,
-            message = displayMessage,
-            timestamp = timestamp,
-            isRead = false,
-            offerId = offerId,
-            messageType = "OFFER"
+            id = "", chatRoomId = chatRoomId, senderId = senderId, receiverId = receiverId,
+            listingId = listingId, message = displayMessage, timestamp = timestamp,
+            isRead = false, offerId = offerId, messageType = "OFFER"
         )
         val result = firestoreChatDataSource.sendMessage(messageDto)
         if (result.isSuccess) {
             firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, displayMessage, timestamp)
             Result.success(Unit)
-        } else {
-            Result.failure(result.exceptionOrNull() ?: Exception("Failed to send offer message"))
-        }
+        } else Result.failure(result.exceptionOrNull() ?: Exception("Failed to send offer"))
     }
 
     override suspend fun markMessagesAsRead(chatRoomId: String, receiverId: String) {
@@ -115,18 +120,9 @@ class ChatRepositoryImpl(
         }
     }
 
-    override fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>> {
-        return firestoreChatDataSource.getChatRoomsForListing(listingId).map { dtos -> dtos.map { it.toDomain() } }
-    }
-
-    override fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>> {
-        return firestoreChatDataSource.getAllChatRoomsForUser(userId).map { dtos -> dtos.map { it.toDomain() } }
-    }
-
-    override fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int> {
-        return firestoreChatDataSource.getUnreadMessageCount(chatRoomId, userId)
-    }
-
+    override fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>> = firestoreChatDataSource.getChatRoomsForListing(listingId).map { dtos -> dtos.map { it.toDomain() } }
+    override fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>> = firestoreChatDataSource.getAllChatRoomsForUser(userId).map { dtos -> dtos.map { it.toDomain() } }
+    override fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int> = firestoreChatDataSource.getUnreadMessageCount(chatRoomId, userId)
     override fun generateChatRoomId(listingId: String, userId1: String, userId2: String): String {
         val sortedIds = listOf(userId1, userId2).sorted()
         return "${listingId}_${sortedIds[0]}_${sortedIds[1]}"
@@ -136,30 +132,20 @@ class ChatRepositoryImpl(
         if (messages.isEmpty()) return
         try {
             ensureContextExists(messages.first().listingId, messages.first().senderId, messages.first().receiverId)
-            val entities = messages.map { it.toEntity() }
-            chatMessageDao.insertAll(entities)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error caching messages: ${e.message}")
-        }
+            chatMessageDao.insertAll(messages.map { it.toEntity() })
+        } catch (e: Exception) { Log.e(TAG, "Error caching messages: ${e.message}") }
     }
 
     private suspend fun ensureContextExists(listingId: String, senderId: String, receiverId: String) {
-        // Ensure Users exist
         listOf(senderId, receiverId).forEach { uid ->
             if (userDao.getUserById(uid) == null) {
                 userDao.insert(UserEntity(id = uid, name = "User_$uid", email = "", createdAt = System.currentTimeMillis()))
             }
         }
-        
-        // Ensure Listing exists by fetching from remote if not in local DB
         if (listingDao.getListingById(listingId) == null) {
             try {
-                remoteListingRepository.getListingById(listingId)?.let { listingDto ->
-                    listingDao.insert(listingDto.toEntity())
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch/cache missing listing $listingId: ${e.message}")
-            }
+                remoteListingRepository.getListingById(listingId)?.let { listingDao.insert(it.toEntity()) }
+            } catch (e: Exception) { Log.e(TAG, "Failed to cache missing listing $listingId") }
         }
     }
 }

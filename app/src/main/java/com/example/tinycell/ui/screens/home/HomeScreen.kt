@@ -27,7 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 
 /**
  * HOME SCREEN - MARKETPLACE BROWSING (With Search & Filters)
- * Updated to 2-column grid layout for a modern marketplace feel.
+ * Updated to support Public Profile navigation.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +35,7 @@ fun HomeScreen(
     onNavigateToDetail: (String) -> Unit,
     onNavigateToCreate: () -> Unit,
     onNavigateToMyFavorites: () -> Unit,
+    onNavigateToPublicProfile: (String, String) -> Unit, // Added missing callback
     listingRepository: ListingRepository,
     favouriteRepository: FavouriteRepository,
     authRepository: AuthRepository
@@ -140,7 +141,8 @@ fun HomeScreen(
                                 listing = listing,
                                 onClick = { onNavigateToDetail(listing.id) },
                                 isFavourited = favouriteStates[listing.id] ?: false,
-                                onFavouriteClick = { viewModel.toggleFavourite(listing.id) }
+                                onFavouriteClick = { viewModel.toggleFavourite(listing.id) },
+                                onSellerClick = onNavigateToPublicProfile // Wired to public profile
                             )
                         }
                     }

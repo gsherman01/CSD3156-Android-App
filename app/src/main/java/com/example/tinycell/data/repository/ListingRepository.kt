@@ -18,12 +18,13 @@ private const val TAG = "ListingRepository"
 
 /**
  * [FINAL VERSION]: Updated ListingRepository.
- * Optimized for performance with Room SSOT, Pagination, and Formal Offers.
+ * Optimized for performance with Room SSOT, Review System, and Transaction Lifecycle.
  */
 class ListingRepository(
     private val listingDao: ListingDao,
     private val userDao: UserDao,
     private val offerDao: OfferDao,
+    private val reviewDao: ReviewDao,
     private val remoteRepo: RemoteListingRepository,
     private val imageRepo: RemoteImageRepository,
     private val authRepo: AuthRepository
@@ -31,55 +32,68 @@ class ListingRepository(
 
     /**
      * [OFFER_SYSTEM]: Make a new formal offer.
-     * Ensures the listing and users exist locally before creating the offer to prevent FK constraint errors.
      */
     suspend fun makeOffer(listingId: String, amount: Double, offerId: String = java.util.UUID.randomUUID().toString()) = withContext(Dispatchers.IO) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
         
-        // Ensure the listing and its seller exist locally
         val listing = listingDao.getListingById(listingId) ?: remoteRepo.getListingById(listingId)?.toEntity()?.also { listingDao.insert(it) }
-        if (listing == null) {
-            Log.e(TAG, "Cannot make offer on a non-existent listing: $listingId")
-            return@withContext
-        }
+        if (listing == null) return@withContext
 
-        // Ensure both users exist locally
         ensureUserExistsLocally(currentUid, currentName)
         ensureUserExistsLocally(listing.userId, listing.sellerName)
         
         val offerDto = OfferDto(
-            id = offerId,
-            listingId = listingId,
-            buyerId = currentUid,
-            sellerId = listing.userId,
-            amount = amount,
-            status = "PENDING",
-            timestamp = System.currentTimeMillis()
+            id = offerId, listingId = listingId, buyerId = currentUid, sellerId = listing.userId,
+            amount = amount, status = "PENDING", timestamp = System.currentTimeMillis()
         )
-        
-        Log.d(TAG, "Making offer: $offerId for listing: $listingId")
         offerDao.insert(offerDto.toEntity())
-        
-        remoteRepo.sendOffer(offerDto).onFailure {
-            Log.e(TAG, "Failed to send offer to cloud: ${it.message}")
-        }
+        remoteRepo.sendOffer(offerDto)
     }
 
     suspend fun acceptOffer(offerId: String) = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Attempting to accept offer: $offerId")
         offerDao.updateStatus(offerId, "ACCEPTED")
         val result = remoteRepo.updateOfferStatus(offerId, "ACCEPTED")
         
         if (result.isSuccess) {
             val offer = offerDao.getOfferById(offerId)
-            offer?.let { 
-                Log.d(TAG, "Offer accepted successfully. Marking listing ${it.listingId} as SOLD.")
-                listingDao.markAsSold(it.listingId) 
-            }
-        } else {
-            Log.e(TAG, "Remote accept failed: ${result.exceptionOrNull()?.message}")
+            offer?.let { listingDao.markAsReserved(it.listingId) }
         }
+    }
+
+    suspend fun completeTransaction(listingId: String) = withContext(Dispatchers.IO) {
+        listingDao.markAsSold(listingId)
+    }
+
+    suspend fun submitReview(
+        listingId: String,
+        reviewerId: String,
+        revieweeId: String,
+        rating: Int,
+        comment: String,
+        role: String
+    ) = withContext(Dispatchers.IO) {
+        val review = ReviewEntity(
+            id = java.util.UUID.randomUUID().toString(),
+            listingId = listingId,
+            reviewerId = reviewerId,
+            revieweeId = revieweeId,
+            rating = rating,
+            comment = comment,
+            timestamp = System.currentTimeMillis(),
+            role = role
+        )
+        reviewDao.insert(review)
+    }
+
+    fun getReviewsForUser(userId: String) = reviewDao.getReviewsForUser(userId)
+    fun getAverageRating(userId: String) = reviewDao.getAverageRating(userId)
+    
+    /**
+     * [REVIEW_SYSTEM]: Check if a specific review exists.
+     */
+    fun getReviewForTransaction(reviewerId: String, listingId: String): Flow<ReviewEntity?> {
+        return reviewDao.getReviewByReviewerAndListing(reviewerId, listingId)
     }
 
     suspend fun rejectOffer(offerId: String) = withContext(Dispatchers.IO) {
@@ -89,52 +103,25 @@ class ListingRepository(
 
     fun getOffersForListing(listingId: String): Flow<List<OfferEntity>> = offerDao.getOffersByListing(listingId)
 
-    /**
-     * [REAL_TIME_BRIDGE]: Automatically sinks Cloud updates into Room.
-     */
     fun startRealTimeSync(scope: CoroutineScope) {
         scope.launch(Dispatchers.IO) {
             remoteRepo.getRemoteListings().collectLatest { remoteDtos ->
                 try {
-                    remoteDtos.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) ->
-                        ensureUserExistsLocally(uid, name)
-                    }
+                    remoteDtos.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) -> ensureUserExistsLocally(uid, name) }
                     listingDao.insertAll(remoteDtos.map { it.toEntity() })
-                } catch (e: Exception) {
-                    Log.e(TAG, "Real-time sync error: ${e.message}")
-                }
+                } catch (e: Exception) { Log.e(TAG, "Sync error: ${e.message}") }
             }
         }
     }
 
-    /**
-     * Observable Flows for UI - Room is the Single Source of Truth
-     */
-    val allListings: Flow<List<Listing>> = listingDao.getAllListings().map { entities -> entities.map { it.toListing() } }
     val activeListings: Flow<List<Listing>> = listingDao.getActiveListings().map { entities -> entities.map { it.toListing() } }
-
-    fun getActiveListingsPaged(lastTimestamp: Long, pageSize: Int): Flow<List<Listing>> {
-        return listingDao.getActiveListingsBatch(lastTimestamp, pageSize).map { entities -> entities.map { it.toListing() } }
-    }
-
-    suspend fun syncBatchFromRemote(pageSize: Int, lastTimestamp: Long?) = withContext(Dispatchers.IO) {
-        try {
-            val remoteListings = remoteRepo.fetchListingsBatch(pageSize, lastTimestamp)
-            remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) -> ensureUserExistsLocally(uid, name) }
-            listingDao.insertAll(remoteListings.map { it.toEntity() })
-        } catch (e: Exception) {
-            Log.e(TAG, "Batch sync failed: ${e.message}")
-        }
-    }
 
     suspend fun syncFromRemote() = withContext(Dispatchers.IO) {
         try {
             val remoteListings = remoteRepo.fetchListings()
             remoteListings.map { it.userId to it.sellerName }.distinct().forEach { (uid, name) -> ensureUserExistsLocally(uid, name) }
             listingDao.insertAll(remoteListings.map { it.toEntity() })
-        } catch (e: Exception) {
-            Log.e(TAG, "Sync failed: ${e.message}")
-        }
+        } catch (e: Exception) { Log.e(TAG, "Sync failed: ${e.message}") }
     }
 
     suspend fun createListing(entity: ListingEntity) = withContext(Dispatchers.IO) {
@@ -145,44 +132,19 @@ class ListingRepository(
         listingDao.insert(secureEntity)
         try {
             val localPaths = if (secureEntity.imageUrls.isEmpty()) emptyList() else secureEntity.imageUrls.split(",")
-            var finalEntity = secureEntity
             if (localPaths.isNotEmpty()) {
                 val uploadResult = imageRepo.uploadImages(localPaths)
                 val remoteUrls = uploadResult.getOrThrow()
-                finalEntity = secureEntity.copy(imageUrls = remoteUrls.joinToString(","))
-                listingDao.update(finalEntity)
+                listingDao.update(secureEntity.copy(imageUrls = remoteUrls.joinToString(",")))
             }
-            remoteRepo.uploadListing(finalEntity.toDto()).getOrThrow()
-        } catch (e: Exception) {
-            Log.e(TAG, "Remote write failed: ${e.message}")
-        }
+            remoteRepo.uploadListing(secureEntity.toDto()).getOrThrow()
+        } catch (e: Exception) { Log.e(TAG, "Remote write failed: ${e.message}") }
     }
 
-    /**
-     * Updated to support Location, Timestamp and improved validation flow.
-     */
-    suspend fun createNewListing(
-        title: String, 
-        price: Double, 
-        description: String, 
-        category: String, 
-        imagePaths: List<String>,
-        location: String? = null
-    ) {
+    suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>, location: String? = null) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
-        val newListing = Listing(
-            id = java.util.UUID.randomUUID().toString(), 
-            title = title, 
-            price = price, 
-            category = category, 
-            sellerId = currentUid, 
-            sellerName = currentName, 
-            description = description, 
-            imageUrl = imagePaths.joinToString(","),
-            location = location,
-            createdAt = System.currentTimeMillis()
-        )
+        val newListing = Listing(id = java.util.UUID.randomUUID().toString(), title = title, price = price, category = category, sellerId = currentUid, sellerName = currentName, description = description, imageUrl = imagePaths.joinToString(","), location = location, createdAt = System.currentTimeMillis())
         createListing(newListing.toEntity(currentUid, currentName))
     }
 
@@ -197,35 +159,11 @@ class ListingRepository(
     }
 
     suspend fun getListingById(id: String): Listing? = listingDao.getListingById(id)?.toListing()
-
-    /**
-     * Real-time observable listing.
-     */
     fun getListingFlow(id: String): Flow<Listing?> = listingDao.getListingFlow(id).map { it?.toListing() }
-
-    fun getListingsByCategory(categoryId: String) = listingDao.getListingsByCategory(categoryId).map { entities -> entities.map { it.toListing() } }
     fun getListingsByUser(userId: String): Flow<List<Listing>> = listingDao.getListingsByUser(userId).map { entities -> entities.map { it.toListing() } }
 
-    /**
-     * Search listings with multiple filters.
-     */
-    fun searchWithFilters(
-        query: String,
-        categoryIds: List<String>,
-        minPrice: Double,
-        maxPrice: Double,
-        minDate: Long,
-        maxDate: Long
-    ): Flow<List<Listing>> {
-        return listingDao.searchWithFilters(
-            query = query,
-            categoryIds = categoryIds,
-            categoryIdsSize = categoryIds.size,
-            minPrice = minPrice,
-            maxPrice = maxPrice,
-            minDate = minDate,
-            maxDate = maxDate
-        ).map { entities -> entities.map { it.toListing() } }
+    fun searchWithFilters(query: String, categoryIds: List<String>, minPrice: Double, maxPrice: Double, minDate: Long, maxDate: Long): Flow<List<Listing>> {
+        return listingDao.searchWithFilters(query, categoryIds, categoryIds.size, minPrice, maxPrice, minDate, maxDate).map { entities -> entities.map { it.toListing() } }
     }
 
     suspend fun getAllCategories() = listingDao.getAllCategories()
@@ -237,33 +175,15 @@ class ListingRepository(
  * Mapping Helpers
  */
 private fun ListingEntity.toListing() = Listing(
-    id = id,
-    title = title,
-    price = price,
-    category = categoryId,
-    sellerId = userId,
-    sellerName = sellerName,
-    description = description,
-    imageUrl = imageUrls.split(",").firstOrNull(),
-    location = location,
-    isSold = isSold,
-    status = status,
-    createdAt = createdAt
+    id = id, title = title, price = price, category = categoryId, sellerId = userId, sellerName = sellerName,
+    description = description, imageUrl = imageUrls.split(",").firstOrNull(), location = location,
+    isSold = isSold, status = status, createdAt = createdAt
 )
 
 private fun Listing.toEntity(uid: String, sName: String) = ListingEntity(
-    id = id,
-    title = title,
-    description = description ?: "",
-    price = price,
-    userId = uid,
-    sellerName = sName,
-    categoryId = category,
-    location = location,
-    imageUrls = imageUrl ?: "",
-    createdAt = createdAt,
-    isSold = isSold,
-    status = status
+    id = id, title = title, description = description ?: "", price = price, userId = uid, sellerName = sName,
+    categoryId = category, location = location, imageUrls = imageUrl ?: "", createdAt = createdAt,
+    isSold = isSold, status = status
 )
 
 private fun OfferDto.toEntity() = OfferEntity(

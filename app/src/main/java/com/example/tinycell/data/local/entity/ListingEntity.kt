@@ -7,8 +7,8 @@ import androidx.room.PrimaryKey
 import com.example.tinycell.data.remote.model.ListingDto
 
 /**
- * [FINAL VERSION]: Room entity for Listing table.
- * Updated with status field for robust offer lifecycle handling.
+ * Room entity for Listing table.
+ * Supports lifecycle states: AVAILABLE, PENDING, RESERVED, SOLD.
  */
 @Entity(
     tableName = "listings",
@@ -45,8 +45,7 @@ data class ListingEntity(
     val createdAt: Long,
     val isSold: Boolean = false,
     
-    // [PHASE 6.1]: Explicit status for Offer Stage handling
-    // AVAILABLE, PENDING (Under Offer), SOLD
+    // Status Flow: AVAILABLE -> PENDING (Offer made) -> RESERVED (Offer accepted) -> SOLD (Transaction complete)
     val status: String = "AVAILABLE"
 )
 

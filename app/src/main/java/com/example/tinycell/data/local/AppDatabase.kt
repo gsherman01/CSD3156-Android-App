@@ -9,7 +9,7 @@ import com.example.tinycell.data.local.entity.*
 
 /**
  * TinyCell Room Database.
- * Updated to include the Formal Offer System.
+ * Updated to include the Review System.
  */
 @Database(
     entities = [
@@ -18,9 +18,10 @@ import com.example.tinycell.data.local.entity.*
         ListingEntity::class,
         FavouriteEntity::class,
         ChatMessageEntity::class,
-        OfferEntity::class
+        OfferEntity::class,
+        ReviewEntity::class // Added ReviewEntity
     ],
-    version = 4, // Incremented version for new OfferEntity
+    version = 5, // Incremented version for Review system
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun favouriteDao(): FavouriteDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun offerDao(): OfferDao
+    abstract fun reviewDao(): ReviewDao // Added ReviewDao
 
     companion object {
         @Volatile
