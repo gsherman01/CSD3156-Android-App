@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Repository interface for chat operations.
- * Updated to support Image messages and Reviews.
+ * Updated to support Global Unread tracking.
  */
 interface ChatRepository {
     suspend fun getOrCreateChatRoom(
@@ -31,7 +31,7 @@ interface ChatRepository {
         senderId: String,
         receiverId: String,
         listingId: String,
-        imagePath: String // Local path to be uploaded
+        imagePath: String
     ): Result<Unit>
 
     suspend fun sendOfferMessage(
@@ -47,5 +47,11 @@ interface ChatRepository {
     fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>>
     fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>>
     fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int>
+    
+    /**
+     * [NEW]: Streams the total unread message count for the current user across all rooms.
+     */
+    fun getTotalUnreadCount(userId: String): Flow<Int>
+
     fun generateChatRoomId(listingId: String, userId1: String, userId2: String): String
 }

@@ -44,13 +44,20 @@ class AppContainer(private val context: Context) {
         FirebaseStorageRepositoryImpl(context.applicationContext, storage)
     }
 
+    val remoteNotificationRepository: RemoteNotificationRepository by lazy {
+        FirestoreNotificationRepositoryImpl(firestore)
+    }
+
     val listingRepository: ListingRepository by lazy {
         ListingRepository(
             listingDao = database.listingDao(),
             userDao = database.userDao(),
             offerDao = database.offerDao(),
-            reviewDao = database.reviewDao(), // Added reviewDao
+            reviewDao = database.reviewDao(),
+            notificationDao = database.notificationDao(),
+            favouriteDao = database.favouriteDao(),
             remoteRepo = remoteListingRepository,
+            remoteNotificationRepo = remoteNotificationRepository,
             imageRepo = remoteImageRepository,
             authRepo = authRepository
         )
@@ -67,7 +74,7 @@ class AppContainer(private val context: Context) {
             userDao = database.userDao(),
             listingDao = database.listingDao(),
             remoteListingRepository = remoteListingRepository,
-            remoteImageRepository = remoteImageRepository // Added remoteImageRepository
+            remoteImageRepository = remoteImageRepository
         )
     }
 
@@ -75,7 +82,7 @@ class AppContainer(private val context: Context) {
         FavouriteRepository(database.favouriteDao())
     }
 
-    private val database: AppDatabase by lazy {
+    val database: AppDatabase by lazy {
         AppDatabase.getDatabase(context)
     }
 
@@ -84,7 +91,11 @@ class AppContainer(private val context: Context) {
             try {
                 authRepository.signInAnonymously()
                 seedDatabase()
+                
+                // Start real-time sync bridges
                 listingRepository.startRealTimeSync(applicationScope)
+                listingRepository.startNotificationSync(applicationScope)
+                
                 performRemoteSync()
             } catch (e: Exception) {
                 Log.e(TAG, "Initialization failed", e)
@@ -111,37 +122,6 @@ class AppContainer(private val context: Context) {
             categories.forEach { lDao.insertCategory(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Seeding failed", e)
-        }
-    }
-
-    suspend fun generateSampleListings(count: Int = 5) {
-        try {
-            val userId = authRepository.getCurrentUserId() ?: "anonymous"
-            val userName = authRepository.getCurrentUserName() ?: "Anonymous"
-            val currentTime = System.currentTimeMillis()
-
-            val sampleData = listOf(
-                Triple("iPhone 14 Pro", 899.99, "Electronics"),
-                Triple("MacBook Pro M2", 1499.99, "Electronics"),
-                Triple("Sony WH-1000XM5", 349.99, "Electronics"),
-                Triple("Winter Jacket", 79.99, "Fashion"),
-                Triple("Coffee Table", 199.99, "Home"),
-                Triple("LEGO Star Wars Set", 129.99, "Toys")
-            )
-
-            repeat(count) { index ->
-                val sample = sampleData[index % sampleData.size]
-                val listingEntity = com.example.tinycell.data.local.entity.ListingEntity(
-                    id = java.util.UUID.randomUUID().toString(),
-                    title = sample.first, description = "Sample Listing #$index",
-                    price = sample.second, userId = userId, sellerName = userName, categoryId = sample.third,
-                    location = "Cloud Sync Test", imageUrls = "", createdAt = currentTime - (index * 60000),
-                    isSold = false, status = "AVAILABLE"
-                )
-                listingRepository.createListing(listingEntity)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Sample generation failed", e)
         }
     }
 

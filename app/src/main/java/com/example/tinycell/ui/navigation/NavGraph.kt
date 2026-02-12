@@ -18,6 +18,7 @@ import com.example.tinycell.ui.screens.myfavorites.MyFavoritesScreen
 import com.example.tinycell.ui.screens.mylistings.MyListingsScreen
 import com.example.tinycell.ui.screens.profile.ProfileScreen
 import com.example.tinycell.ui.screens.publicprofile.PublicProfileScreen
+import com.example.tinycell.ui.screens.notifications.NotificationScreen
 
 @Composable
 fun TinyCellNavHost(
@@ -37,7 +38,9 @@ fun TinyCellNavHost(
                 onNavigateToDetail = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
                 onNavigateToCreate = { navController.navigate(Screen.CreateListing.route) },
                 onNavigateToMyFavorites = { navController.navigate(Screen.MyFavorites.route) },
-                onNavigateToPublicProfile = { userId, userName -> navController.navigate(Screen.PublicProfile.createRoute(userId, userName)) },
+                onNavigateToPublicProfile = { userId, userName -> 
+                    navController.navigate(Screen.PublicProfile.createRoute(userId, userName)) 
+                },
                 listingRepository = listingRepository,
                 favouriteRepository = appContainer.favouriteRepository,
                 authRepository = authRepository
@@ -131,6 +134,15 @@ fun TinyCellNavHost(
             val userName = backStackEntry.arguments?.getString("userName")?.let { Screen.PublicProfile.decodeName(it) } ?: ""
             PublicProfileScreen(
                 userId = userId, userName = userName, listingRepository = listingRepository,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) }
+            )
+        }
+
+        // [NEW]: Notification Bulletin Screen route registration
+        composable("notifications") {
+            NotificationScreen(
+                listingRepository = listingRepository,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToDetail = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) }
             )

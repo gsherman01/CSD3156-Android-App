@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * [PHASE 5.6]: Updated ProfileViewModel with Admin/Auth Debugging.
+ * Updated ProfileViewModel with focus on personalization.
  */
 class ProfileViewModel(
     private val authRepository: AuthRepository,
@@ -22,9 +22,6 @@ class ProfileViewModel(
 
     private val _userName = MutableStateFlow(authRepository.getCurrentUserName() ?: "Anonymous")
     val userName: StateFlow<String> = _userName.asStateFlow()
-
-    private val _isGeneratingListings = MutableStateFlow(false)
-    val isGeneratingListings: StateFlow<Boolean> = _isGeneratingListings.asStateFlow()
 
     private val _showEditDialog = MutableStateFlow(false)
     val showEditDialog: StateFlow<Boolean> = _showEditDialog.asStateFlow()
@@ -72,17 +69,6 @@ class ProfileViewModel(
             authRepository.signInAnonymously()
             _userId.value = authRepository.getCurrentUserId() ?: "Not Logged In"
             _userName.value = authRepository.getCurrentUserName() ?: "Anonymous"
-        }
-    }
-
-    fun generateSampleListings(count: Int = 5) {
-        viewModelScope.launch {
-            _isGeneratingListings.value = true
-            try {
-                appContainer.generateSampleListings(count)
-            } finally {
-                _isGeneratingListings.value = false
-            }
         }
     }
 }

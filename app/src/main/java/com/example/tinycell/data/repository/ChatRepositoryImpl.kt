@@ -13,22 +13,23 @@ import com.example.tinycell.data.remote.model.ChatRoomDto
 import com.example.tinycell.data.remote.model.toDomain
 import com.example.tinycell.data.remote.model.toEntity
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 
 private const val TAG = "ChatRepositoryImpl"
 
 /**
- * Implementation of ChatRepository with support for Images and Context.
+ * Implementation of ChatRepository with support for Images and Global Unread tracking.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ChatRepositoryImpl(
     private val firestoreChatDataSource: FirestoreChatDataSource,
     private val chatMessageDao: ChatMessageDao,
     private val userDao: UserDao,
     private val listingDao: ListingDao,
     private val remoteListingRepository: RemoteListingRepository,
-    private val remoteImageRepository: RemoteImageRepository // Added for image support
+    private val remoteImageRepository: RemoteImageRepository
 ) : ChatRepository {
 
     override suspend fun getOrCreateChatRoom(
@@ -68,18 +69,12 @@ class ChatRepositoryImpl(
         } else Result.failure(result.exceptionOrNull() ?: Exception("Unknown error"))
     }
 
-    /**
-     * [PHASE 7]: Uploads an image and sends it as a chat message.
-     */
     override suspend fun sendImageMessage(
         chatRoomId: String, senderId: String, receiverId: String, listingId: String, imagePath: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            // 1. Upload image to Storage
             val uploadResult = remoteImageRepository.uploadImages(listOf(imagePath))
             val imageUrl = uploadResult.getOrThrow().first()
-
-            // 2. Send IMAGE type message to Firestore
             val timestamp = System.currentTimeMillis()
             val messageDto = ChatMessageDto(
                 id = "", chatRoomId = chatRoomId, senderId = senderId, receiverId = receiverId,
@@ -90,10 +85,8 @@ class ChatRepositoryImpl(
             if (result.isSuccess) {
                 firestoreChatDataSource.updateChatRoomLastMessage(chatRoomId, "📷 Image", timestamp)
                 Result.success(Unit)
-            } else Result.failure(result.exceptionOrNull() ?: Exception("Failed to send image message"))
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+            } else Result.failure(result.exceptionOrNull() ?: Exception("Failed to send image"))
+        } catch (e: Exception) { Result.failure(e) }
     }
 
     override suspend fun sendOfferMessage(
@@ -123,6 +116,23 @@ class ChatRepositoryImpl(
     override fun getChatRoomsForListing(listingId: String): Flow<List<ChatRoom>> = firestoreChatDataSource.getChatRoomsForListing(listingId).map { dtos -> dtos.map { it.toDomain() } }
     override fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>> = firestoreChatDataSource.getAllChatRoomsForUser(userId).map { dtos -> dtos.map { it.toDomain() } }
     override fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int> = firestoreChatDataSource.getUnreadMessageCount(chatRoomId, userId)
+    
+    /**
+     * [FIXED]: Streams the total unread message count for the current user.
+     */
+    override fun getTotalUnreadCount(userId: String): Flow<Int> {
+        return firestoreChatDataSource.getAllChatRoomsForUser(userId).flatMapLatest { rooms ->
+            if (rooms.isEmpty()) {
+                flowOf(0)
+            } else {
+                val flows = rooms.map { room ->
+                    firestoreChatDataSource.getUnreadMessageCount(room.id, userId)
+                }
+                combine(flows) { counts -> counts.sum() }
+            }
+        }
+    }
+
     override fun generateChatRoomId(listingId: String, userId1: String, userId2: String): String {
         val sortedIds = listOf(userId1, userId2).sorted()
         return "${listingId}_${sortedIds[0]}_${sortedIds[1]}"
