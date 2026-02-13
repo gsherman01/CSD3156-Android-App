@@ -51,4 +51,7 @@ sealed class Screen(val route: String) {
         }
         fun decodeName(encoded: String): String = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
     }
+
+    // [NEW]: Notifications route
+    object Notifications : Screen("notifications")
 }

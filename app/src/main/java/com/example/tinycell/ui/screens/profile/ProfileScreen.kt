@@ -21,15 +21,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tinycell.data.repository.AuthRepository
 
 /**
- * [PHASE 5.6]: Enhanced Profile Screen with Admin/Debug Controls.
- * Allows switching users for single-device testing.
+ * Enhanced Profile Screen with Admin/Debug Controls.
  */
 @Composable
 fun ProfileScreen(
     authRepository: AuthRepository,
     onNavigateToMyListings: () -> Unit = {},
-    // this looks contrive // you should probably import it,
-    // or is this how you call for a singleton WAIT THIS IS A type.
     appContainer: com.example.tinycell.di.AppContainer
 ) {
     val viewModel: ProfileViewModel = viewModel(
@@ -43,7 +40,6 @@ fun ProfileScreen(
 
     val userId by viewModel.userId.collectAsState()
     val userName by viewModel.userName.collectAsState()
-    val isGeneratingListings by viewModel.isGeneratingListings.collectAsState()
     val showEditDialog by viewModel.showEditDialog.collectAsState()
     var showDebugMenu by remember { mutableStateOf(false) }
 
@@ -144,9 +140,7 @@ fun ProfileScreen(
         if (showDebugMenu) {
             AdminDebugPanel(
                 onSwitchUser = { viewModel.switchUser(it) },
-                onReset = { viewModel.resetToRealAuth() },
-                onGenerateListings = { count -> viewModel.generateSampleListings(count) },
-                isGenerating = isGeneratingListings
+                onReset = { viewModel.resetToRealAuth() }
             )
         }
     }
@@ -164,12 +158,9 @@ fun ProfileScreen(
 @Composable
 fun AdminDebugPanel(
     onSwitchUser: (String) -> Unit,
-    onReset: () -> Unit,
-    onGenerateListings: (Int) -> Unit,
-    isGenerating: Boolean
+    onReset: () -> Unit
 ) {
     var customId by remember { mutableStateOf("") }
-    var listingCount by remember { mutableStateOf("5") }
 
     Column(
         modifier = Modifier
@@ -220,70 +211,11 @@ fun AdminDebugPanel(
                 Text("Reset")
             }
         }
-
-        // Divider
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f))
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Generate Listings Section
-        Text(
-            text = "Generate Sample Listings",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.secondary
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Create sample marketplace listings for testing. Listings will be created under the current user.",
-            style = MaterialTheme.typography.bodySmall
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = listingCount,
-                onValueChange = {
-                    if (it.isEmpty() || it.all { char -> char.isDigit() }) {
-                        listingCount = it
-                    }
-                },
-                label = { Text("Count") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                enabled = !isGenerating
-            )
-
-            Button(
-                onClick = {
-                    val count = listingCount.toIntOrNull() ?: 5
-                    onGenerateListings(count.coerceIn(1, 20))
-                },
-                modifier = Modifier.weight(1f),
-                enabled = !isGenerating
-            ) {
-                if (isGenerating) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Generate")
-                }
-            }
-        }
     }
 }
 
 /**
  * Profile Edit Dialog
- * Allows users to edit their display name.
  */
 @Composable
 fun ProfileEditDialog(

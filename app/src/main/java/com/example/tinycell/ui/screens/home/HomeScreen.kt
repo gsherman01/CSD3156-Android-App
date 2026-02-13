@@ -23,11 +23,12 @@ import com.example.tinycell.ui.components.ListingCard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.ui.text.style.TextAlign
 
 /**
- * HOME SCREEN - MARKETPLACE BROWSING (With Search & Filters)
- * Updated to support Public Profile navigation.
+ * HOME SCREEN - MARKETPLACE BROWSING
+ * Updated with Notification Bell and Public Profile navigation.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,15 +36,14 @@ fun HomeScreen(
     onNavigateToDetail: (String) -> Unit,
     onNavigateToCreate: () -> Unit,
     onNavigateToMyFavorites: () -> Unit,
-    onNavigateToPublicProfile: (String, String) -> Unit, // Added missing callback
+    onNavigateToPublicProfile: (String, String) -> Unit,
+    onNavigateToNotifications: () -> Unit, // New callback
     listingRepository: ListingRepository,
     favouriteRepository: FavouriteRepository,
     authRepository: AuthRepository
 ) {
-    // Get current user ID
     val currentUserId = authRepository.getCurrentUserId() ?: ""
 
-    // Initialize ViewModel
     val viewModel: HomeViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -53,24 +53,33 @@ fun HomeScreen(
         }
     )
 
-    // Collect States
     val listings by viewModel.listings.collectAsState(initial = emptyList())
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val searchFilters by viewModel.searchFilters.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val showFilterSheet by viewModel.showFilterSheet.collectAsState()
     val favouriteStates by viewModel.favouriteStates.collectAsState()
+    val unreadNotifications by viewModel.unreadNotificationCount.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("TinySell") },
                 actions = {
-                    // Refresh Button
-                    IconButton(onClick = { viewModel.refreshListings() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    // Notification Bell with Badge
+                    BadgedBox(
+                        badge = {
+                            if (unreadNotifications > 0) {
+                                Badge { Text(if (unreadNotifications > 9) "9+" else unreadNotifications.toString()) }
+                            }
+                        },
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        IconButton(onClick = onNavigateToNotifications) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Bulletin")
+                        }
                     }
-                    // My Favorites Button
+
                     IconButton(onClick = onNavigateToMyFavorites) {
                         Icon(Icons.Default.Favorite, contentDescription = "My Favorites")
                     }
@@ -96,7 +105,6 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Search Bar
             SearchBar(
                 query = searchFilters.query,
                 onQueryChange = { viewModel.updateSearchQuery(it) },
@@ -105,7 +113,6 @@ fun HomeScreen(
                 activeFilterCount = viewModel.getActiveFilterCount()
             )
 
-            // Active Filters Chips
             if (searchFilters.selectedCategories.isNotEmpty() ||
                 searchFilters.minPrice > 0.0 ||
                 searchFilters.maxPrice < Double.MAX_VALUE ||
@@ -121,7 +128,6 @@ fun HomeScreen(
                 )
             }
 
-            // Listings Display (2-Column Grid)
             Box(modifier = Modifier.fillMaxSize()) {
                 if (listings.isEmpty() && !isRefreshing) {
                     EmptyState(onRefresh = { viewModel.refreshListings() })
@@ -142,25 +148,21 @@ fun HomeScreen(
                                 onClick = { onNavigateToDetail(listing.id) },
                                 isFavourited = favouriteStates[listing.id] ?: false,
                                 onFavouriteClick = { viewModel.toggleFavourite(listing.id) },
-                                onSellerClick = onNavigateToPublicProfile // Wired to public profile
+                                onSellerClick = onNavigateToPublicProfile
                             )
                         }
                     }
                 }
 
-                // Loading Indicator
                 if (isRefreshing) {
                     LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopCenter),
+                        modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
         }
 
-        // Filter Bottom Sheet
         if (showFilterSheet) {
             FilterBottomSheet(
                 viewModel = viewModel,
@@ -209,7 +211,6 @@ fun SearchBar(
             shape = MaterialTheme.shapes.large
         )
 
-        // Filter Button with Badge
         BadgedBox(
             badge = {
                 if (activeFilterCount > 0) {
@@ -227,9 +228,6 @@ fun SearchBar(
     }
 }
 
-/**
- * Active Filters Display Row
- */
 @Composable
 fun ActiveFiltersRow(
     filters: SearchFilters,
@@ -244,7 +242,6 @@ fun ActiveFiltersRow(
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Category Filter Chips (Multiple)
         items(filters.selectedCategories.toList()) { categoryId ->
             val category = categories.find { it.id == categoryId }
             val displayText = "${category?.icon ?: ""} ${category?.name ?: categoryId}"
@@ -257,7 +254,6 @@ fun ActiveFiltersRow(
             )
         }
 
-        // Price Filter Chip
         if (filters.minPrice > 0.0 || filters.maxPrice < Double.MAX_VALUE) {
             item {
                 val priceText = when {
@@ -276,7 +272,6 @@ fun ActiveFiltersRow(
             }
         }
 
-        // Date Range Filter Chip
         if (filters.minDate != null || filters.maxDate != null) {
             item {
                 val dateText = formatDateRange(filters.minDate, filters.maxDate)
@@ -289,7 +284,6 @@ fun ActiveFiltersRow(
             }
         }
 
-        // Clear All Button
         item {
             AssistChip(
                 onClick = onClearAllFilters,
@@ -305,9 +299,6 @@ fun ActiveFiltersRow(
     Spacer(modifier = Modifier.height(8.dp))
 }
 
-/**
- * Filter Bottom Sheet
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterBottomSheet(
@@ -329,7 +320,6 @@ fun FilterBottomSheet(
                 .padding(16.dp)
                 .padding(bottom = 32.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -348,14 +338,12 @@ fun FilterBottomSheet(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Category Filter Section
             Text(
                 text = "Category",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // Category selection hint
             if (currentFilters.selectedCategories.isNotEmpty()) {
                 Text(
                     text = "${currentFilters.selectedCategories.size} selected",
@@ -369,7 +357,6 @@ fun FilterBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Category options (multi-select)
                 items(categories) { category ->
                     FilterChip(
                         selected = category.id in currentFilters.selectedCategories,
@@ -382,7 +369,6 @@ fun FilterBottomSheet(
                 }
             }
 
-            // Clear categories button (only show if categories are selected)
             if (currentFilters.selectedCategories.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = { viewModel.clearCategoryFilters() }) {
@@ -394,7 +380,6 @@ fun FilterBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Price Range Section
             Text(
                 text = "Price Range",
                 style = MaterialTheme.typography.titleMedium,
@@ -434,7 +419,6 @@ fun FilterBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Date Range Section
             DateRangeFilterSection(
                 viewModel = viewModel,
                 currentFilters = currentFilters
@@ -442,10 +426,8 @@ fun FilterBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Apply Button
             Button(
                 onClick = {
-                    // Apply price filters
                     val min = minPrice.toDoubleOrNull() ?: 0.0
                     val max = maxPrice.toDoubleOrNull() ?: Double.MAX_VALUE
                     viewModel.updatePriceRange(min, max)
@@ -459,9 +441,6 @@ fun FilterBottomSheet(
     }
 }
 
-/**
- * Date Range Filter Section
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateRangeFilterSection(
@@ -481,7 +460,6 @@ fun DateRangeFilterSection(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Start Date
         OutlinedButton(
             onClick = { showStartDatePicker = true },
             modifier = Modifier.weight(1f)
@@ -499,7 +477,6 @@ fun DateRangeFilterSection(
             }
         }
 
-        // End Date
         OutlinedButton(
             onClick = { showEndDatePicker = true },
             modifier = Modifier.weight(1f)
@@ -518,7 +495,6 @@ fun DateRangeFilterSection(
         }
     }
 
-    // Clear date range button (only show if dates are selected)
     if (currentFilters.minDate != null || currentFilters.maxDate != null) {
         Spacer(modifier = Modifier.height(8.dp))
         TextButton(onClick = { viewModel.clearDateRange() }) {
@@ -528,7 +504,6 @@ fun DateRangeFilterSection(
         }
     }
 
-    // Start Date Picker Dialog
     if (showStartDatePicker) {
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = currentFilters.minDate ?: System.currentTimeMillis()
@@ -560,7 +535,6 @@ fun DateRangeFilterSection(
         }
     }
 
-    // End Date Picker Dialog
     if (showEndDatePicker) {
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = currentFilters.maxDate ?: System.currentTimeMillis()
@@ -571,7 +545,6 @@ fun DateRangeFilterSection(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { selectedDate ->
-                            // Set time to end of day
                             val endOfDay = selectedDate + (24 * 60 * 60 * 1000 - 1)
                             viewModel.updateDateRange(
                                 minDate = currentFilters.minDate,
@@ -595,9 +568,6 @@ fun DateRangeFilterSection(
     }
 }
 
-/**
- * Helper function to format date for display
- */
 fun formatDate(timestamp: Long): String {
     val calendar = java.util.Calendar.getInstance()
     calendar.timeInMillis = timestamp
@@ -607,9 +577,6 @@ fun formatDate(timestamp: Long): String {
     return "$month/$day/$year"
 }
 
-/**
- * Helper function to format date range for chip display
- */
 fun formatDateRange(minDate: Long?, maxDate: Long?): String {
     return when {
         minDate != null && maxDate != null -> "${formatDate(minDate)} - ${formatDate(maxDate)}"
@@ -619,9 +586,6 @@ fun formatDateRange(minDate: Long?, maxDate: Long?): String {
     }
 }
 
-/**
- * Empty State Display
- */
 @Composable
 fun EmptyState(onRefresh: () -> Unit) {
     Column(

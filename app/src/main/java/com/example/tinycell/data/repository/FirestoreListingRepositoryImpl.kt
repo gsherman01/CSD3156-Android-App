@@ -14,8 +14,8 @@ import kotlinx.coroutines.tasks.await
 private const val TAG = "FirestoreRemote"
 
 /**
- * [PHASE 3/6]: Firestore Implementation of RemoteListingRepository.
- * Handles listings and the formal offer system.
+ * Firestore Implementation of RemoteListingRepository.
+ * [STABILITY UPDATED]: Handles missing indices without crashing the app.
  */
 class FirestoreListingRepositoryImpl(
     private val firestore: FirebaseFirestore
@@ -31,9 +31,12 @@ class FirestoreListingRepositoryImpl(
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     if (error.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
-                        Log.e(TAG, "INDEX REQUIRED: Check Logcat for URL.")
+                        Log.e(TAG, "CRITICAL: Firestore Index Required. Use the link in Logcat to create it.")
+                    } else {
+                        Log.e(TAG, "Remote listener error: ${error.message}")
                     }
-                    Log.e(TAG, "Remote listener error: ${error.message}")
+                    // [STABILITY]: Don't close the flow, just send an empty list so the app doesn't crash
+                    trySend(emptyList())
                     return@addSnapshotListener
                 }
                 val items = snapshot?.toObjects(ListingDto::class.java) ?: emptyList()
@@ -50,6 +53,7 @@ class FirestoreListingRepositoryImpl(
                 .get().await()
             snapshot.toObjects(ListingDto::class.java)
         } catch (e: Exception) {
+            Log.e(TAG, "Fetch listings failed (Likely missing index): ${e.message}")
             emptyList()
         }
     }
@@ -66,14 +70,15 @@ class FirestoreListingRepositoryImpl(
             val snapshot = query.get().await()
             snapshot.toObjects(ListingDto::class.java)
         } catch (e: Exception) {
+            Log.e(TAG, "Fetch listings batch failed: ${e.message}")
             emptyList()
         }
     }
 
     override suspend fun uploadListing(listing: ListingDto): Result<Unit> = try {
-        val docRef = if (listing.id.isBlank()) listingsCollection.document() else listingsCollection.document(listing.id)
-        val finalListing = if (listing.id.isBlank()) listing.copy(id = docRef.id) else listing
-        docRef.set(finalListing).await()
+        val docId = listing.id.ifBlank { listingsCollection.document().id }
+        val finalListing = if (listing.id.isBlank()) listing.copy(id = docId) else listing
+        listingsCollection.document(docId).set(finalListing).await()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.failure(e)
@@ -88,35 +93,19 @@ class FirestoreListingRepositoryImpl(
         }
     }
 
-    /**
-     * [PHASE 6]: Offer System - Implementation
-     */
     override suspend fun sendOffer(offer: OfferDto): Result<Unit> = try {
-        // [FIX]: Ensure the document ID in Firestore matches the offer.id exactly.
         val offerId = offer.id.ifBlank { java.util.UUID.randomUUID().toString() }
         val finalOffer = if (offer.id.isBlank()) offer.copy(id = offerId) else offer
-        
-        Log.d(TAG, "Cloud: Creating offer document: $offerId")
         offersCollection.document(offerId).set(finalOffer).await()
-        
-        Log.d(TAG, "Cloud: SUCCESS: Offer document created.")
         Result.success(Unit)
     } catch (e: Exception) {
-        Log.e(TAG, "Cloud: FAILURE: Could not create offer: ${e.message}")
         Result.failure(e)
     }
 
     override suspend fun updateOfferStatus(offerId: String, status: String): Result<Unit> = try {
-        Log.d(TAG, "Cloud: Updating offer $offerId status to $status")
-        
-        // Use set with merge or update. update() fails if doc doesn't exist (NOT_FOUND).
-        // Using set(merge=true) is safer for eventual consistency.
         offersCollection.document(offerId).update("status", status).await()
-        
-        Log.d(TAG, "Cloud: SUCCESS: Offer status updated.")
         Result.success(Unit)
     } catch (e: Exception) {
-        Log.e(TAG, "Cloud: FAILURE: Could not update offer: ${e.message}")
         Result.failure(e)
     }
 
@@ -126,7 +115,7 @@ class FirestoreListingRepositoryImpl(
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    trySend(emptyList())
                     return@addSnapshotListener
                 }
                 val items = snapshot?.toObjects(OfferDto::class.java) ?: emptyList()

@@ -15,23 +15,15 @@ import kotlinx.coroutines.launch
  */
 data class SearchFilters(
     val query: String = "",
-    val selectedCategories: Set<String> = emptySet(), // Empty set = all categories
+    val selectedCategories: Set<String> = emptySet(),
     val minPrice: Double = 0.0,
     val maxPrice: Double = Double.MAX_VALUE,
-    val minDate: Long? = null, // null = no date filter
-    val maxDate: Long? = null  // null = no date filter
+    val minDate: Long? = null,
+    val maxDate: Long? = null
 )
 
 /**
- * HomeViewModel - ViewModel for the home/browse screen.
- *
- * Updated with comprehensive search and filter capabilities:
- * - Text search (title/description)
- * - Category filter
- * - Price range filter
- * - Date range filter
- * - Multiple filters can be applied simultaneously
- * - Favorite tracking and toggling
+ * HomeViewModel - Updated with Notification tracking.
  */
 class HomeViewModel(
     private val repository: ListingRepository,
@@ -39,29 +31,27 @@ class HomeViewModel(
     private val currentUserId: String
 ) : ViewModel() {
 
-    // Categories loaded from database
     private val _categories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val categories: StateFlow<List<CategoryEntity>> = _categories.asStateFlow()
 
-    // Filter state
     private val _searchFilters = MutableStateFlow(SearchFilters())
     val searchFilters: StateFlow<SearchFilters> = _searchFilters.asStateFlow()
 
-    // UI State
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private val _showFilterSheet = MutableStateFlow(false)
     val showFilterSheet: StateFlow<Boolean> = _showFilterSheet.asStateFlow()
 
-    // Favorite state - Map of listing ID to favorite status
     private val _favouriteStates = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     val favouriteStates: StateFlow<Map<String, Boolean>> = _favouriteStates.asStateFlow()
 
     /**
-     * Listings filtered based on current search and filter criteria.
-     * Reactively updates when filters change.
+     * [NEW]: Real-time unread notification count.
      */
+    val unreadNotificationCount: StateFlow<Int> = repository.getUnreadNotificationCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val listings: Flow<List<Listing>> = _searchFilters.flatMapLatest { filters ->
         repository.searchWithFilters(
@@ -79,129 +69,61 @@ class HomeViewModel(
         loadFavouriteStates()
     }
 
-    /**
-     * Load available categories from database
-     */
     private fun loadCategories() {
         viewModelScope.launch {
             try {
                 val cats = repository.getAllCategories()
                 _categories.value = cats
-            } catch (e: Exception) {
-                // Handle error
-            }
+            } catch (e: Exception) { }
         }
     }
 
-    /**
-     * Update search query
-     */
     fun updateSearchQuery(query: String) {
         _searchFilters.update { it.copy(query = query) }
     }
 
-    /**
-     * Toggle category filter (add or remove from selection)
-     */
     fun toggleCategoryFilter(categoryId: String) {
         _searchFilters.update { currentFilters ->
             val currentCategories = currentFilters.selectedCategories.toMutableSet()
-            if (categoryId in currentCategories) {
-                currentCategories.remove(categoryId)
-            } else {
-                currentCategories.add(categoryId)
-            }
+            if (categoryId in currentCategories) currentCategories.remove(categoryId) else currentCategories.add(categoryId)
             currentFilters.copy(selectedCategories = currentCategories)
         }
     }
 
-    /**
-     * Clear all category filters
-     */
     fun clearCategoryFilters() {
         _searchFilters.update { it.copy(selectedCategories = emptySet()) }
     }
 
-    /**
-     * Update price range filter
-     */
     fun updatePriceRange(min: Double, max: Double) {
-        _searchFilters.update {
-            it.copy(
-                minPrice = min,
-                maxPrice = max
-            )
-        }
+        _searchFilters.update { it.copy(minPrice = min, maxPrice = max) }
     }
 
-    /**
-     * Update date range filter
-     */
     fun updateDateRange(minDate: Long?, maxDate: Long?) {
-        _searchFilters.update {
-            it.copy(
-                minDate = minDate,
-                maxDate = maxDate
-            )
-        }
+        _searchFilters.update { it.copy(minDate = minDate, maxDate = maxDate) }
     }
 
-    /**
-     * Clear date range filter
-     */
     fun clearDateRange() {
-        _searchFilters.update {
-            it.copy(
-                minDate = null,
-                maxDate = null
-            )
-        }
+        _searchFilters.update { it.copy(minDate = null, maxDate = null) }
     }
 
-    /**
-     * Clear all filters
-     */
     fun clearAllFilters() {
         _searchFilters.value = SearchFilters()
     }
 
-    /**
-     * Clear only search query (keep filters)
-     */
     fun clearSearch() {
         _searchFilters.update { it.copy(query = "") }
     }
 
-    /**
-     * Toggle filter sheet visibility
-     */
-    fun toggleFilterSheet() {
-        _showFilterSheet.value = !_showFilterSheet.value
-    }
+    fun toggleFilterSheet() { _showFilterSheet.value = !_showFilterSheet.value }
+    fun hideFilterSheet() { _showFilterSheet.value = false }
 
-    fun hideFilterSheet() {
-        _showFilterSheet.value = false
-    }
-
-    /**
-     * Manual sync/refresh from remote
-     */
     fun refreshListings() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            try {
-                repository.syncFromRemote()
-            } catch (e: Exception) {
-                // Handle error
-            } finally {
-                _isRefreshing.value = false
-            }
+            try { repository.syncFromRemote() } catch (e: Exception) { } finally { _isRefreshing.value = false }
         }
     }
 
-    /**
-     * Get active filter count for UI badge
-     */
     fun getActiveFilterCount(): Int {
         val filters = _searchFilters.value
         var count = 0
@@ -211,9 +133,6 @@ class HomeViewModel(
         return count
     }
 
-    /**
-     * Load favorite states for all listings
-     */
     private fun loadFavouriteStates() {
         viewModelScope.launch {
             listings.collect { listingList ->
@@ -226,23 +145,12 @@ class HomeViewModel(
         }
     }
 
-    /**
-     * Toggle favorite status for a listing
-     */
     fun toggleFavourite(listingId: String) {
         viewModelScope.launch {
             favouriteRepository.toggleFavourite(currentUserId, listingId)
-            // Update local state immediately for responsive UI
             _favouriteStates.value = _favouriteStates.value.toMutableMap().apply {
                 this[listingId] = !(this[listingId] ?: false)
             }
         }
-    }
-
-    /**
-     * Check if a listing is favourited
-     */
-    fun isFavourited(listingId: String): Boolean {
-        return _favouriteStates.value[listingId] ?: false
     }
 }

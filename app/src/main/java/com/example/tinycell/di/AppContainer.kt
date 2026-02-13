@@ -86,19 +86,40 @@ class AppContainer(private val context: Context) {
         AppDatabase.getDatabase(context)
     }
 
+    /**
+     * Resilient startup initialization.
+     */
     fun initializeData() {
         applicationScope.launch(Dispatchers.IO) {
             try {
+                Log.d(TAG, "initializeData: Authenticating...")
                 authRepository.signInAnonymously()
+                
+                Log.d(TAG, "initializeData: Seeding DB...")
                 seedDatabase()
                 
-                // Start real-time sync bridges
-                listingRepository.startRealTimeSync(applicationScope)
-                listingRepository.startNotificationSync(applicationScope)
+                // [RESILIENCE]: Wrap sync bridges in individual try-catches
+                launch {
+                    try {
+                        Log.d(TAG, "initializeData: Starting Listing Sync...")
+                        listingRepository.startRealTimeSync(this)
+                    } catch (e: Exception) { Log.e(TAG, "Listing Sync failed", e) }
+                }
+
+                launch {
+                    try {
+                        Log.d(TAG, "initializeData: Starting Notification Sync...")
+                        listingRepository.startNotificationSync(this)
+                    } catch (e: Exception) { Log.e(TAG, "Notification Sync failed", e) }
+                }
                 
-                performRemoteSync()
+                try {
+                    Log.d(TAG, "initializeData: Performing Remote Fetch...")
+                    performRemoteSync()
+                } catch (e: Exception) { Log.e(TAG, "Remote Fetch failed", e) }
+
             } catch (e: Exception) {
-                Log.e(TAG, "Initialization failed", e)
+                Log.e(TAG, "Critical Initialization failed", e)
             }
         }
     }
@@ -109,6 +130,8 @@ class AppContainer(private val context: Context) {
             val lDao = database.listingDao()
             val userId = authRepository.getCurrentUserId() ?: "anonymous"
             val currentName = authRepository.getCurrentUserName() ?: "Anonymous"
+            
+            // Ensure current user record exists locally
             uDao.insert(UserEntity(id = userId, name = currentName, email = "", createdAt = System.currentTimeMillis()))
 
             val categories = listOf(
@@ -126,10 +149,6 @@ class AppContainer(private val context: Context) {
     }
 
     private suspend fun performRemoteSync() {
-        try {
-            listingRepository.syncFromRemote()
-        } catch (e: Exception) {
-            Log.e(TAG, "Remote sync failed", e)
-        }
+        listingRepository.syncFromRemote()
     }
 }

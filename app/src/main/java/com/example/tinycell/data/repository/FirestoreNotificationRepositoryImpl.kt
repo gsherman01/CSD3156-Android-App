@@ -3,6 +3,7 @@ package com.example.tinycell.data.repository
 import android.util.Log
 import com.example.tinycell.data.local.entity.NotificationEntity
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -12,6 +13,7 @@ private const val TAG = "FirestoreNotification"
 
 /**
  * Firestore implementation of RemoteNotificationRepository.
+ * [STABILITY]: Handles permission errors without crashing.
  */
 class FirestoreNotificationRepositoryImpl(
     private val firestore: FirebaseFirestore
@@ -34,7 +36,13 @@ class FirestoreNotificationRepositoryImpl(
             .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                        Log.e(TAG, "PERMISSION DENIED: Check your Firestore Security Rules.")
+                    } else {
+                        Log.e(TAG, "Remote notification listener error: ${error.message}")
+                    }
+                    // Emit empty list instead of closing with error to prevent app crash
+                    trySend(emptyList())
                     return@addSnapshotListener
                 }
                 val notifications = snapshot?.documents?.mapNotNull { doc ->
@@ -46,9 +54,6 @@ class FirestoreNotificationRepositoryImpl(
     }
 }
 
-/**
- * Internal DTO for Firestore compatibility.
- */
 data class NotificationEntityDto(
     val userId: String = "",
     val title: String = "",

@@ -41,6 +41,9 @@ fun TinyCellNavHost(
                 onNavigateToPublicProfile = { userId, userName -> 
                     navController.navigate(Screen.PublicProfile.createRoute(userId, userName)) 
                 },
+                onNavigateToNotifications = { 
+                    navController.navigate(Screen.Notifications.route) 
+                },
                 listingRepository = listingRepository,
                 favouriteRepository = appContainer.favouriteRepository,
                 authRepository = authRepository
@@ -139,8 +142,7 @@ fun TinyCellNavHost(
             )
         }
 
-        // [NEW]: Notification Bulletin Screen route registration
-        composable("notifications") {
+        composable(Screen.Notifications.route) {
             NotificationScreen(
                 listingRepository = listingRepository,
                 onNavigateBack = { navController.popBackStack() },
