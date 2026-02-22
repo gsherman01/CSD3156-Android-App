@@ -13,7 +13,7 @@ import java.util.UUID
 
 /**
  * ViewModel for the Chat screen.
- * [FIXED]: Correct buyer identification, guidance text logic, and one-time review check.
+ * [RELIABILITY UPDATED]: Proactively syncs with cloud on initialization.
  */
 class ChatViewModel(
     private val chatRepository: ChatRepository,
@@ -35,6 +35,8 @@ class ChatViewModel(
 
     init {
         loadChat()
+        // [FIX]: Immediately mark messages as read when entering the chat
+        markChatAsRead()
     }
 
     private fun loadChat() {
@@ -44,20 +46,13 @@ class ChatViewModel(
             val listingFlow = listingRepository.getListingFlow(listingId)
             val messagesFlow = chatRepository.getMessagesFlow(chatRoomId)
             val offersFlow = listingRepository.getOffersForListing(listingId)
-            
-            // Observe if the current user has already reviewed this transaction
             val reviewFlow = listingRepository.getReviewForTransaction(currentUserId, listingId)
 
             combine(listingFlow, messagesFlow, offersFlow, reviewFlow) { listing, messages, offers, existingReview ->
                 val statuses = offers.associate { it.id to it.status }
                 val isSeller = listing?.sellerId == currentUserId
-                
-                // [FIX]: The buyer is the person who is NOT the listing creator (seller)
-                // In our model, listing.sellerId is the creator.
-                val sellerId = listing?.sellerId ?: ""
                 val buyerId = if (isSeller) otherUserId else currentUserId
                 
-                // An offer is ACTIVE if it is the latest one sent by the buyer
                 val latestOffer = messages
                     .filter { it.messageType == "OFFER" && it.senderId == buyerId }
                     .maxByOrNull { it.timestamp }
@@ -68,10 +63,16 @@ class ChatViewModel(
                     isSeller = isSeller,
                     activeOfferId = latestOffer?.offerId,
                     offerStatuses = statuses,
-                    hasReviewed = existingReview != null, // Reactive check for review
+                    hasReviewed = existingReview != null,
                     isLoading = false
                 )
             }.collect()
+        }
+    }
+
+    private fun markChatAsRead() {
+        viewModelScope.launch {
+            chatRepository.markMessagesAsRead(chatRoomId, currentUserId)
         }
     }
 
@@ -125,7 +126,7 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 listingRepository.submitReview(listingId, currentUserId, otherUserId, rating, comment, role)
-                _uiState.value = _uiState.value.copy(showReviewDialog = false)
+                _uiState.value = _uiState.value.copy(showReviewDialog = false, hasReviewed = true)
             } catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to submit review") }
         }
     }

@@ -1,10 +1,17 @@
 package com.example.tinycell.data.repository
 
+import kotlinx.coroutines.flow.StateFlow
+
 /**
- * [PHASE 5.6]: Simple Auth Repository Interface.
- * Updated to support user switching and admin debugging.
+ * Simple Auth Repository Interface.
+ * Updated with userIdFlow for reactive UI updates during user switching.
  */
 interface AuthRepository {
+    /**
+     * Observable stream of the current user ID.
+     */
+    val userIdFlow: StateFlow<String?>
+
     fun getCurrentUserId(): String?
     fun getCurrentUserName(): String?
     suspend fun signInAnonymously(): Result<Unit>
