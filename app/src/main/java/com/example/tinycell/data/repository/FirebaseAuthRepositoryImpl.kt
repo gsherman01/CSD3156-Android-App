@@ -2,6 +2,9 @@ package com.example.tinycell.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.userProfileChangeRequest
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -13,6 +16,10 @@ class FirebaseAuthRepositoryImpl(
 ) : AuthRepository {
 
     private var debugUserId: String? = null
+    
+    // [FIX]: Implement the reactive userIdFlow required by the interface
+    private val _userIdFlow = MutableStateFlow<String?>(debugUserId ?: auth.currentUser?.uid)
+    override val userIdFlow: StateFlow<String?> = _userIdFlow.asStateFlow()
 
     /**
      * ALWAYS returns the same ID that Room uses as a Foreign Key.
@@ -38,6 +45,7 @@ class FirebaseAuthRepositoryImpl(
         if (auth.currentUser == null) {
             auth.signInAnonymously().await()
         }
+        updateFlow()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.failure(e)
@@ -46,6 +54,7 @@ class FirebaseAuthRepositoryImpl(
     override fun signOut() {
         auth.signOut()
         debugUserId = null
+        updateFlow()
     }
 
     /**
@@ -62,5 +71,10 @@ class FirebaseAuthRepositoryImpl(
 
     override fun setDebugUserId(id: String?) {
         debugUserId = id
+        updateFlow()
+    }
+
+    private fun updateFlow() {
+        _userIdFlow.value = getCurrentUserId()
     }
 }

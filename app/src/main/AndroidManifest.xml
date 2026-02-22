@@ -9,8 +9,6 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
-
-    <!-- [FIX]: Added android:name=".MarketplaceApp" to link the custom Application class -->
     <application
         android:name=".MarketplaceApp"
         android:allowBackup="true"
@@ -28,10 +26,20 @@
             android:theme="@style/Theme.TinyCell">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- [NEW]: FileProvider for Camera support -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.example.tinycell.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>
