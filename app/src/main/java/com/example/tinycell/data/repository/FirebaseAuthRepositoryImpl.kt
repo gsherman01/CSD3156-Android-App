@@ -1,5 +1,6 @@
 package com.example.tinycell.data.repository
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.userProfileChangeRequest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -7,9 +8,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 
+private const val TAG = "FirebaseAuthRepo"
+
 /**
- * [PHASE 5.8]: Firebase Auth Implementation with Admin Controls.
- * Ensuring UIDs and Display Names are consistent for Room and UI.
+ * Firebase Auth Implementation with Admin Controls.
+ * [IDENTITY_SWITCH_SUPPORTED]: Synchronizes identity changes with UI and Logs.
  */
 class FirebaseAuthRepositoryImpl(
     private val auth: FirebaseAuth
@@ -17,27 +20,21 @@ class FirebaseAuthRepositoryImpl(
 
     private var debugUserId: String? = null
     
-    // [FIX]: Implement the reactive userIdFlow required by the interface
     private val _userIdFlow = MutableStateFlow<String?>(debugUserId ?: auth.currentUser?.uid)
     override val userIdFlow: StateFlow<String?> = _userIdFlow.asStateFlow()
 
     /**
-     * ALWAYS returns the same ID that Room uses as a Foreign Key.
+     * Returns the Active ID (Debug override or Firebase UID).
      */
     override fun getCurrentUserId(): String? {
         return debugUserId ?: auth.currentUser?.uid
     }
 
-    /**
-     * Guarantees a non-null display name. 
-     * Uses Firebase name if available, otherwise generates one from the UID.
-     */
     override fun getCurrentUserName(): String? {
         val firebaseName = auth.currentUser?.displayName
         if (!firebaseName.isNullOrBlank()) return firebaseName
         
         val id = getCurrentUserId() ?: "unknown"
-        // Generate a recognizable name like User_7a2b
         return "User_${id.takeLast(4).uppercase()}"
     }
 
@@ -57,10 +54,6 @@ class FirebaseAuthRepositoryImpl(
         updateFlow()
     }
 
-    /**
-     * Update the current user's display name.
-     * Updates Firebase Auth profile.
-     */
     override suspend fun updateUserName(newName: String) {
         val user = auth.currentUser ?: return
         val profileUpdates = userProfileChangeRequest {
@@ -69,12 +62,24 @@ class FirebaseAuthRepositoryImpl(
         user.updateProfile(profileUpdates).await()
     }
 
+    /**
+     * [IDENTITY_SWITCH]: Overrides the current identity for local operations.
+     * Note: Firestore Rules will still see the underlying Firebase Auth token.
+     */
     override fun setDebugUserId(id: String?) {
+        Log.d(TAG, "Identity Switch: ${getCurrentUserId()} -> $id")
         debugUserId = id
+        
+        // This notifies the entire app via userIdFlow
         updateFlow()
+        
+        // Developer Tip: To see this switch in Firebase Console, 
+        // you would ideally use FirebaseAnalytics.setUserId(id).
     }
 
     private fun updateFlow() {
-        _userIdFlow.value = getCurrentUserId()
+        val activeId = getCurrentUserId()
+        _userIdFlow.value = activeId
+        Log.i(TAG, "Active App Identity: $activeId")
     }
 }

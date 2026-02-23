@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 private const val TAG = "ChatRepositoryImpl"
 
 /**
- * Implementation of ChatRepository with support for Images and Global Unread tracking.
+ * Implementation of ChatRepository with support for Images and Identity Switching.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatRepositoryImpl(
@@ -29,7 +29,8 @@ class ChatRepositoryImpl(
     private val userDao: UserDao,
     private val listingDao: ListingDao,
     private val remoteListingRepository: RemoteListingRepository,
-    private val remoteImageRepository: RemoteImageRepository
+    private val remoteImageRepository: RemoteImageRepository,
+    private val authRepository: AuthRepository // Added for Identity Switching support
 ) : ChatRepository {
 
     override suspend fun getOrCreateChatRoom(
@@ -58,8 +59,12 @@ class ChatRepositoryImpl(
         chatRoomId: String, senderId: String, receiverId: String, listingId: String, message: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val timestamp = System.currentTimeMillis()
+        
+        // Ensure we use the Active Identity (important for Admin Switch)
+        val activeSenderId = authRepository.getCurrentUserId() ?: senderId
+        
         val messageDto = ChatMessageDto(
-            id = "", chatRoomId = chatRoomId, senderId = senderId, receiverId = receiverId,
+            id = "", chatRoomId = chatRoomId, senderId = activeSenderId, receiverId = receiverId,
             listingId = listingId, message = message, timestamp = timestamp, isRead = false, messageType = "TEXT"
         )
         val result = firestoreChatDataSource.sendMessage(messageDto)
@@ -73,11 +78,12 @@ class ChatRepositoryImpl(
         chatRoomId: String, senderId: String, receiverId: String, listingId: String, imagePath: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val activeSenderId = authRepository.getCurrentUserId() ?: senderId
             val uploadResult = remoteImageRepository.uploadImages(listOf(imagePath))
             val imageUrl = uploadResult.getOrThrow().first()
             val timestamp = System.currentTimeMillis()
             val messageDto = ChatMessageDto(
-                id = "", chatRoomId = chatRoomId, senderId = senderId, receiverId = receiverId,
+                id = "", chatRoomId = chatRoomId, senderId = activeSenderId, receiverId = receiverId,
                 listingId = listingId, message = "📷 Image", timestamp = timestamp,
                 isRead = false, imageUrl = imageUrl, messageType = "IMAGE"
             )
@@ -92,10 +98,11 @@ class ChatRepositoryImpl(
     override suspend fun sendOfferMessage(
         chatRoomId: String, senderId: String, receiverId: String, listingId: String, amount: Double, offerId: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
+        val activeSenderId = authRepository.getCurrentUserId() ?: senderId
         val timestamp = System.currentTimeMillis()
-        val displayMessage = "Offered \$${amount}"
+        val displayMessage = "Offered \$${"%.2f".format(amount)}"
         val messageDto = ChatMessageDto(
-            id = "", chatRoomId = chatRoomId, senderId = senderId, receiverId = receiverId,
+            id = "", chatRoomId = chatRoomId, senderId = activeSenderId, receiverId = receiverId,
             listingId = listingId, message = displayMessage, timestamp = timestamp,
             isRead = false, offerId = offerId, messageType = "OFFER"
         )
@@ -117,9 +124,6 @@ class ChatRepositoryImpl(
     override fun getAllChatRoomsForUser(userId: String): Flow<List<ChatRoom>> = firestoreChatDataSource.getAllChatRoomsForUser(userId).map { dtos -> dtos.map { it.toDomain() } }
     override fun getUnreadCountForChatRoom(chatRoomId: String, userId: String): Flow<Int> = firestoreChatDataSource.getUnreadMessageCount(chatRoomId, userId)
     
-    /**
-     * [FIXED]: Streams the total unread message count for the current user.
-     */
     override fun getTotalUnreadCount(userId: String): Flow<Int> {
         return firestoreChatDataSource.getAllChatRoomsForUser(userId).flatMapLatest { rooms ->
             if (rooms.isEmpty()) {

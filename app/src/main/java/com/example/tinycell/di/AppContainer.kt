@@ -74,7 +74,8 @@ class AppContainer(private val context: Context) {
             userDao = database.userDao(),
             listingDao = database.listingDao(),
             remoteListingRepository = remoteListingRepository,
-            remoteImageRepository = remoteImageRepository
+            remoteImageRepository = remoteImageRepository,
+            authRepository = authRepository // [FIX]: Added missing authRepository dependency
         )
     }
 
@@ -86,40 +87,16 @@ class AppContainer(private val context: Context) {
         AppDatabase.getDatabase(context)
     }
 
-    /**
-     * Resilient startup initialization.
-     */
     fun initializeData() {
         applicationScope.launch(Dispatchers.IO) {
             try {
-                Log.d(TAG, "initializeData: Authenticating...")
                 authRepository.signInAnonymously()
-                
-                Log.d(TAG, "initializeData: Seeding DB...")
                 seedDatabase()
-                
-                // [RESILIENCE]: Wrap sync bridges in individual try-catches
-                launch {
-                    try {
-                        Log.d(TAG, "initializeData: Starting Listing Sync...")
-                        listingRepository.startRealTimeSync(this)
-                    } catch (e: Exception) { Log.e(TAG, "Listing Sync failed", e) }
-                }
-
-                launch {
-                    try {
-                        Log.d(TAG, "initializeData: Starting Notification Sync...")
-                        listingRepository.startNotificationSync(this)
-                    } catch (e: Exception) { Log.e(TAG, "Notification Sync failed", e) }
-                }
-                
-                try {
-                    Log.d(TAG, "initializeData: Performing Remote Fetch...")
-                    performRemoteSync()
-                } catch (e: Exception) { Log.e(TAG, "Remote Fetch failed", e) }
-
+                listingRepository.startRealTimeSync(applicationScope)
+                listingRepository.startNotificationSync(applicationScope)
+                performRemoteSync()
             } catch (e: Exception) {
-                Log.e(TAG, "Critical Initialization failed", e)
+                Log.e(TAG, "Initialization failed", e)
             }
         }
     }
@@ -130,8 +107,6 @@ class AppContainer(private val context: Context) {
             val lDao = database.listingDao()
             val userId = authRepository.getCurrentUserId() ?: "anonymous"
             val currentName = authRepository.getCurrentUserName() ?: "Anonymous"
-            
-            // Ensure current user record exists locally
             uDao.insert(UserEntity(id = userId, name = currentName, email = "", createdAt = System.currentTimeMillis()))
 
             val categories = listOf(
@@ -149,6 +124,10 @@ class AppContainer(private val context: Context) {
     }
 
     private suspend fun performRemoteSync() {
-        listingRepository.syncFromRemote()
+        try {
+            listingRepository.syncFromRemote()
+        } catch (e: Exception) {
+            Log.e(TAG, "Remote sync failed", e)
+        }
     }
 }
