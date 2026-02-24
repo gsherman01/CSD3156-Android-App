@@ -75,7 +75,7 @@ class AppContainer(private val context: Context) {
             listingDao = database.listingDao(),
             remoteListingRepository = remoteListingRepository,
             remoteImageRepository = remoteImageRepository,
-            authRepository = authRepository // [FIX]: Added missing authRepository dependency
+            authRepository = authRepository
         )
     }
 
@@ -92,8 +92,10 @@ class AppContainer(private val context: Context) {
             try {
                 authRepository.signInAnonymously()
                 seedDatabase()
+                
                 listingRepository.startRealTimeSync(applicationScope)
                 listingRepository.startNotificationSync(applicationScope)
+                
                 performRemoteSync()
             } catch (e: Exception) {
                 Log.e(TAG, "Initialization failed", e)
@@ -120,6 +122,54 @@ class AppContainer(private val context: Context) {
             categories.forEach { lDao.insertCategory(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Seeding failed", e)
+        }
+    }
+
+    /**
+     * [RESTORED]: Generate sample listings for debugging.
+     */
+    suspend fun generateSampleListings(count: Int = 5) {
+        try {
+            val uDao = database.userDao()
+            val lDao = database.listingDao()
+            val userId = authRepository.getCurrentUserId() ?: "anonymous"
+            val userName = authRepository.getCurrentUserName() ?: "Anonymous"
+            val currentTime = System.currentTimeMillis()
+
+            if (uDao.getUserById(userId) == null) {
+                uDao.insert(UserEntity(id = userId, name = userName, email = "", createdAt = currentTime))
+            }
+
+            val sampleData = listOf(
+                Triple("iPhone 14 Pro", 899.99, "Electronics"),
+                Triple("MacBook Pro M2", 1499.99, "Electronics"),
+                Triple("Sony WH-1000XM5", 349.99, "Electronics"),
+                Triple("Winter Jacket", 79.99, "Fashion"),
+                Triple("Coffee Table", 199.99, "Home"),
+                Triple("LEGO Set", 129.99, "Toys")
+            )
+
+            repeat(count) { index ->
+                val sample = sampleData[index % sampleData.size]
+                val listing = com.example.tinycell.data.local.entity.ListingEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    title = sample.first,
+                    description = "Sample Listing #$index",
+                    price = sample.second,
+                    userId = userId,
+                    sellerName = userName,
+                    categoryId = sample.third,
+                    location = "Local Pickup",
+                    imageUrls = "",
+                    createdAt = currentTime - (index * 60000),
+                    isSold = false,
+                    status = "AVAILABLE"
+                )
+                lDao.insert(listing)
+            }
+            Log.d(TAG, "Generated $count sample listings")
+        } catch (e: Exception) {
+            Log.e(TAG, "generateSampleListings: Failed", e)
         }
     }
 

@@ -1,9 +1,13 @@
 package com.example.tinycell.ui.screens.detail
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -39,9 +43,9 @@ import kotlinx.coroutines.launch
 
 /**
  * LISTING DETAIL SCREEN
- * Updated to support Public Profile navigation.
+ * Enhanced with Image Carousel (HorizontalPager) and Public Profile support.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ListingDetailScreen(
     listingId: String,
@@ -51,7 +55,7 @@ fun ListingDetailScreen(
     favouriteRepository: FavouriteRepository,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (chatRoomId: String, listingId: String, listingTitle: String, otherUserId: String, otherUserName: String) -> Unit,
-    onNavigateToPublicProfile: (userId: String, userName: String) -> Unit // Added missing parameter
+    onNavigateToPublicProfile: (userId: String, userName: String) -> Unit
 ) {
     val currentUserId = authRepository.getCurrentUserId() ?: ""
 
@@ -89,7 +93,7 @@ fun ListingDetailScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Listing Details") },
+                    title = { Text("Details") },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -110,44 +114,92 @@ fun ListingDetailScreen(
             }
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(scrollState)) {
-                if (!listingData.imageUrl.isNullOrBlank()) {
-                    AsyncImage(model = listingData.imageUrl, contentDescription = listingData.title, modifier = Modifier.fillMaxWidth().height(300.dp), contentScale = ContentScale.Crop)
+                
+                // --- IMAGE CAROUSEL SECTION ---
+                if (listingData.imageUrls.isNotEmpty()) {
+                    val pagerState = rememberPagerState(pageCount = { listingData.imageUrls.size })
+                    
+                    Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { page ->
+                            AsyncImage(
+                                model = listingData.imageUrls[page],
+                                contentDescription = "Product image ${page + 1}",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        
+                        // Pager Indicators (Dots)
+                        if (listingData.imageUrls.size > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                repeat(listingData.imageUrls.size) { iteration ->
+                                    val color = if (pagerState.currentPage == iteration) Color.White else Color.White.copy(alpha = 0.5f)
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(2.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                            .size(8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 } else {
                     ImagePlaceholderBox()
                 }
 
+                // --- CONTENT SECTION ---
                 Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-                    Text(text = listingData.title, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = listingData.title, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold))
+                    
                     Spacer(modifier = Modifier.height(12.dp))
+                    
                     ListingStatusBadge(isSold = listingData.isSold, status = listingData.status)
+                    
                     Spacer(modifier = Modifier.height(12.dp))
+                    
                     PriceTag(price = listingData.price, textStyle = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold))
+                    
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), shape = RoundedCornerShape(12.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                             InfoRow(label = "Category", value = listingData.category)
                             Spacer(modifier = Modifier.height(8.dp))
                             HorizontalDivider()
                             Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // [FIX]: Make Seller row clickable to navigate to public profile
                             InfoRow(
                                 label = "Seller", 
                                 value = listingData.sellerName,
-                                modifier = Modifier.clickable { onNavigateToPublicProfile(listingData.sellerId, listingData.sellerName) }
+                                modifier = Modifier.clickable { 
+                                    onNavigateToPublicProfile(listingData.sellerId, listingData.sellerName) 
+                                }
                             )
                         }
                     }
 
                     listingData.description?.let { desc ->
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text(text = "Description", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface)
+                        Text(text = "Description", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = desc, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 24.sp)
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
+                    
                     val isCurrentUserSeller = currentUserId == listingData.sellerId
                     if (!isCurrentUserSeller && !listingData.isSold) {
                         Button(
@@ -155,18 +207,26 @@ fun ListingDetailScreen(
                                 isStartingChat = true
                                 coroutineScope.launch {
                                     try {
-                                        val chatRoom = chatRepository.getOrCreateChatRoom(listingId = listingData.id, listingTitle = listingData.title, buyerId = currentUserId, sellerId = listingData.sellerId)
+                                        val chatRoom = chatRepository.getOrCreateChatRoom(
+                                            listingId = listingData.id,
+                                            listingTitle = listingData.title,
+                                            buyerId = currentUserId,
+                                            sellerId = listingData.sellerId
+                                        )
                                         onNavigateToChat(chatRoom.id, listingData.id, listingData.title, listingData.sellerId, listingData.sellerName)
-                                    } finally { isStartingChat = false }
+                                    } finally {
+                                        isStartingChat = false
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             enabled = !isStartingChat,
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            if (isStartingChat) { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp) } 
-                            else {
-                                Icon(imageVector = Icons.Default.Email, contentDescription = null, modifier = Modifier.size(20.dp))
+                            if (isStartingChat) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                            } else {
+                                Icon(imageVector = Icons.Default.Email, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(text = "Chat with Seller", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
                             }
@@ -194,6 +254,6 @@ private fun ImagePlaceholderBox() {
 private fun InfoRow(label: String, value: String, modifier: Modifier = Modifier) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f))
-        Text(text = value, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSecondaryContainer)
+        Text(text = value, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }

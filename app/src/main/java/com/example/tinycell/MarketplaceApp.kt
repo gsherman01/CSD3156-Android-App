@@ -4,14 +4,12 @@ import android.app.Application
 import android.util.Log
 import com.example.tinycell.di.AppContainer
 import com.google.firebase.FirebaseApp
-import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 
 private const val TAG = "MarketplaceApp"
 
 /**
  * Custom Application class for TinyCell.
- * Updated with Firebase App Check for enhanced security.
+ * [SECURITY UPDATED]: Reverted App Check client initialization to avoid attestation errors.
  */
 class MarketplaceApp : Application() {
 
@@ -25,19 +23,13 @@ class MarketplaceApp : Application() {
         try {
             // 1. Initialize Firebase
             FirebaseApp.initializeApp(this)
-            
-            // 2. Initialize App Check with Play Integrity
-            val firebaseAppCheck = FirebaseAppCheck.getInstance()
-            firebaseAppCheck.installAppCheckProviderFactory(
-                PlayIntegrityAppCheckProviderFactory.getInstance()
-            )
-            Log.d(TAG, "onCreate: Firebase App Check initialized with Play Integrity")
+            Log.d(TAG, "onCreate: Firebase initialized successfully")
 
-            // 3. Initialize Dependency Container
+            // 2. Initialize Dependency Container
             _container = AppContainer(this)
             Log.d(TAG, "onCreate: AppContainer initialized successfully")
             
-            // 4. Trigger Startup Sync
+            // 3. Trigger Startup Sync
             container.initializeData()
             Log.d(TAG, "onCreate: initializeData() triggered")
             

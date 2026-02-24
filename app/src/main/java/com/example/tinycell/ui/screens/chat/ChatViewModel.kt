@@ -1,5 +1,6 @@
 package com.example.tinycell.ui.screens.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,9 +12,11 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+private const val TAG = "ChatViewModel"
+
 /**
  * ViewModel for the Chat screen.
- * [RELIABILITY UPDATED]: Proactively syncs with cloud on initialization.
+ * [DEBUG UPDATED]: Added logs for offer system interactions.
  */
 class ChatViewModel(
     private val chatRepository: ChatRepository,
@@ -35,7 +38,6 @@ class ChatViewModel(
 
     init {
         loadChat()
-        // [FIX]: Immediately mark messages as read when entering the chat
         markChatAsRead()
     }
 
@@ -96,6 +98,7 @@ class ChatViewModel(
 
     fun sendOffer() {
         val amount = _offerAmount.value.toDoubleOrNull() ?: return
+        Log.d(TAG, "OFFER_SYSTEM: User attempting to send offer of $amount")
         viewModelScope.launch {
             try {
                 val offerId = UUID.randomUUID().toString()
@@ -103,21 +106,50 @@ class ChatViewModel(
                 chatRepository.sendOfferMessage(chatRoomId, currentUserId, otherUserId, listingId, amount, offerId)
                 toggleOfferDialog(false)
                 _offerAmount.value = ""
-            } catch (e: Exception) { _uiState.value = _uiState.value.copy(error = e.message) }
+                Log.d(TAG, "OFFER_SYSTEM: Offer $offerId sent successfully")
+            } catch (e: Exception) { 
+                Log.e(TAG, "OFFER_SYSTEM: Failed to send offer", e)
+                _uiState.value = _uiState.value.copy(error = e.message) 
+            }
         }
     }
 
     fun acceptOffer(offerId: String) {
+        Log.d(TAG, "OFFER_SYSTEM: Seller attempting to ACCEPT offer: $offerId")
         viewModelScope.launch {
-            try { listingRepository.acceptOffer(offerId) }
-            catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to accept") }
+            try { 
+                listingRepository.acceptOffer(offerId)
+                Log.d(TAG, "OFFER_SYSTEM: Offer $offerId accepted successfully")
+            } catch (e: Exception) { 
+                Log.e(TAG, "OFFER_SYSTEM: Failed to accept offer", e)
+                _uiState.value = _uiState.value.copy(error = "Failed to accept: ${e.message}") 
+            }
+        }
+    }
+
+    fun rejectOffer(offerId: String) {
+        Log.d(TAG, "OFFER_SYSTEM: Seller attempting to REJECT offer: $offerId")
+        viewModelScope.launch {
+            try { 
+                listingRepository.rejectOffer(offerId)
+                Log.d(TAG, "OFFER_SYSTEM: Offer $offerId rejected successfully")
+            } catch (e: Exception) { 
+                Log.e(TAG, "OFFER_SYSTEM: Failed to reject offer", e)
+                _uiState.value = _uiState.value.copy(error = "Failed to reject: ${e.message}") 
+            }
         }
     }
 
     fun markAsSold() {
+        Log.d(TAG, "OFFER_SYSTEM: Seller marking listing $listingId as SOLD")
         viewModelScope.launch {
-            try { listingRepository.completeTransaction(listingId) }
-            catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to mark sold") }
+            try { 
+                listingRepository.completeTransaction(listingId)
+                Log.d(TAG, "OFFER_SYSTEM: Listing marked as SOLD successfully")
+            } catch (e: Exception) { 
+                Log.e(TAG, "OFFER_SYSTEM: Failed to mark sold", e)
+                _uiState.value = _uiState.value.copy(error = "Failed to mark sold") 
+            }
         }
     }
 
@@ -128,13 +160,6 @@ class ChatViewModel(
                 listingRepository.submitReview(listingId, currentUserId, otherUserId, rating, comment, role)
                 _uiState.value = _uiState.value.copy(showReviewDialog = false, hasReviewed = true)
             } catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to submit review") }
-        }
-    }
-
-    fun rejectOffer(offerId: String) {
-        viewModelScope.launch {
-            try { listingRepository.rejectOffer(offerId) }
-            catch (e: Exception) { _uiState.value = _uiState.value.copy(error = "Failed to reject") }
         }
     }
 

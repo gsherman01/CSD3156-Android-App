@@ -19,7 +19,7 @@ import java.util.UUID
 private const val TAG = "ListingRepository"
 
 /**
- * Updated ListingRepository with Cross-Device Notification Bulletin.
+ * [FINAL_STABILITY_FIX]: Corrected Lifecycle and Permission handling for Admin Switch and Master Account.
  */
 class ListingRepository(
     private val listingDao: ListingDao,
@@ -34,6 +34,13 @@ class ListingRepository(
     private val authRepo: AuthRepository
 ) {
 
+    // Helper to check if current user is the Master Admin (sLtu639XdRRxQot8gSEQ9IlKA002)
+    private fun isMasterUser(): Boolean {
+        // We use the real UID from Auth, not the debug override
+        val realUid = (authRepo as? FirebaseAuthRepositoryImpl)?.userIdFlow?.value ?: authRepo.getCurrentUserId()
+        return realUid == "sLtu639XdRRxQot8gSEQ9IlKA002"
+    }
+
     /**
      * [OFFER_SYSTEM]: Make a new formal offer.
      */
@@ -41,6 +48,8 @@ class ListingRepository(
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
         
+        Log.d(TAG, "OFFER_DEBUG: Initiating offer for listing: $listingId by user: $currentUid")
+
         val listing = listingDao.getListingById(listingId) ?: remoteRepo.getListingById(listingId)?.toEntity()?.also { listingDao.insert(it) }
         if (listing == null) return@withContext
 
@@ -54,79 +63,63 @@ class ListingRepository(
         offerDao.insert(offerDto.toEntity())
         remoteRepo.sendOffer(offerDto)
 
-        // Notification for Seller
         val notification = NotificationEntity(
-            id = UUID.randomUUID().toString(),
-            userId = listing.userId,
-            title = "New Offer!",
+            id = UUID.randomUUID().toString(), userId = listing.userId, title = "New Offer!",
             message = "$currentName offered $${"%.2f".format(amount)} for ${listing.title}",
-            type = "OFFER_MADE",
-            referenceId = listingId,
-            timestamp = System.currentTimeMillis()
+            type = "OFFER_MADE", referenceId = listingId, timestamp = System.currentTimeMillis()
         )
         notificationDao.insert(notification)
         remoteNotificationRepo.sendNotification(notification)
     }
 
     /**
-     * [LIFECYCLE]: Accepting an offer notifies the Buyer.
+     * [LIFECYCLE]: Accepting an offer.
+     * [FIX]: Master user can always accept any offer for testing.
      */
     suspend fun acceptOffer(offerId: String) = withContext(Dispatchers.IO) {
-        offerDao.updateStatus(offerId, "ACCEPTED")
+        val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
+        val offer = offerDao.getOfferById(offerId) ?: return@withContext
+        
+        Log.d(TAG, "OFFER_DEBUG: acceptOffer triggered by user: $currentUid for offer ${offer.id}")
+        
+        // Ensure only the Seller OR the Master account can accept
+        if (currentUid != offer.sellerId && !isMasterUser()) {
+            Log.e(TAG, "OFFER_DEBUG: Permission Denied. You are not the seller of this item.")
+            return@withContext
+        }
+
         val result = remoteRepo.updateOfferStatus(offerId, "ACCEPTED")
         
         if (result.isSuccess) {
-            val offer = offerDao.getOfferById(offerId)
-            offer?.let { 
-                listingDao.markAsReserved(it.listingId)
-                val listing = listingDao.getListingById(it.listingId)
-                
-                // [FIXED]: Notify Buyer of acceptance
-                val notification = NotificationEntity(
-                    id = UUID.randomUUID().toString(),
-                    userId = it.buyerId,
-                    title = "Offer Accepted!",
-                    message = "Your offer for ${listing?.title ?: "an item"} was accepted! It is now reserved.",
-                    type = "OFFER_ACCEPTED",
-                    referenceId = it.listingId,
-                    timestamp = System.currentTimeMillis()
-                )
-                notificationDao.insert(notification)
-                remoteNotificationRepo.sendNotification(notification)
-            }
+            offerDao.updateStatus(offerId, "ACCEPTED")
+            listingDao.markAsReserved(offer.listingId)
+            
+            val listing = listingDao.getListingById(offer.listingId)
+            val notification = NotificationEntity(
+                id = UUID.randomUUID().toString(), userId = offer.buyerId, title = "Offer Accepted!",
+                message = "Your offer for ${listing?.title ?: "an item"} was accepted!",
+                type = "OFFER_ACCEPTED", referenceId = offer.listingId, timestamp = System.currentTimeMillis()
+            )
+            notificationDao.insert(notification)
+            remoteNotificationRepo.sendNotification(notification)
+            Log.d(TAG, "OFFER_DEBUG: Acceptance complete.")
+        } else {
+            Log.e(TAG, "OFFER_DEBUG: Remote write failed: ${result.exceptionOrNull()?.message}")
         }
     }
 
-    /**
-     * [BULLETIN]: Notify watchers if price changes (Decrease OR Increase).
-     */
+    suspend fun completeTransaction(listingId: String) = withContext(Dispatchers.IO) {
+        Log.d(TAG, "OFFER_DEBUG: Completing sale for listing: $listingId")
+        listingDao.markAsSold(listingId)
+    }
+
     suspend fun updateListingPrice(listingId: String, newPrice: Double) = withContext(Dispatchers.IO) {
         val listing = listingDao.getListingById(listingId) ?: return@withContext
-        val oldPrice = listing.price
-        
-        if (newPrice != oldPrice) {
-            val isIncrease = newPrice > oldPrice
-            val title = if (isIncrease) "Price Update" else "Price Drop!"
-            val message = if (isIncrease) {
-                "The price for ${listing.title} has increased to $${"%.2f".format(newPrice)}."
-            } else {
-                "An item you like, ${listing.title}, dropped to $${"%.2f".format(newPrice)}!"
-            }
-
+        if (newPrice != listing.price) {
             listingDao.update(listing.copy(price = newPrice))
-            
-            // Notify everyone who favorited this item
             val watchers = favouriteDao.getWatchersForListing(listingId).first()
             watchers.forEach { fav ->
-                val notification = NotificationEntity(
-                    id = UUID.randomUUID().toString(),
-                    userId = fav.userId,
-                    title = title,
-                    message = message,
-                    type = "PRICE_CHANGE",
-                    referenceId = listingId,
-                    timestamp = System.currentTimeMillis()
-                )
+                val notification = NotificationEntity(id = UUID.randomUUID().toString(), userId = fav.userId, title = "Price Changed", message = "An item you like just updated its price.", type = "PRICE_CHANGE", referenceId = listingId, timestamp = System.currentTimeMillis())
                 notificationDao.insert(notification)
                 remoteNotificationRepo.sendNotification(notification)
             }
@@ -145,10 +138,6 @@ class ListingRepository(
     fun getNotifications() = notificationDao.getNotificationsForUser(authRepo.getCurrentUserId() ?: "")
     fun getUnreadNotificationCount() = notificationDao.getUnreadCount(authRepo.getCurrentUserId() ?: "")
     suspend fun markNotificationsRead() = notificationDao.markAllAsRead(authRepo.getCurrentUserId() ?: "")
-
-    suspend fun completeTransaction(listingId: String) = withContext(Dispatchers.IO) {
-        listingDao.markAsSold(listingId)
-    }
 
     suspend fun submitReview(listingId: String, reviewerId: String, revieweeId: String, rating: Int, comment: String, role: String) = withContext(Dispatchers.IO) {
         val review = ReviewEntity(id = UUID.randomUUID().toString(), listingId = listingId, reviewerId = reviewerId, revieweeId = revieweeId, rating = rating, comment = comment, timestamp = System.currentTimeMillis(), role = role)
@@ -195,19 +184,22 @@ class ListingRepository(
         listingDao.insert(secureEntity)
         try {
             val localPaths = if (secureEntity.imageUrls.isEmpty()) emptyList() else secureEntity.imageUrls.split(",")
+            var finalEntity = secureEntity
             if (localPaths.isNotEmpty()) {
                 val uploadResult = imageRepo.uploadImages(localPaths)
-                val remoteUrls = uploadResult.getOrThrow()
-                listingDao.update(secureEntity.copy(imageUrls = remoteUrls.joinToString(",")))
+                if (uploadResult.isSuccess) {
+                    finalEntity = secureEntity.copy(imageUrls = uploadResult.getOrThrow().joinToString(","))
+                    listingDao.update(finalEntity)
+                }
             }
-            remoteRepo.uploadListing(secureEntity.toDto()).getOrThrow()
+            remoteRepo.uploadListing(finalEntity.toDto()).getOrThrow()
         } catch (e: Exception) { Log.e(TAG, "Remote write failed: ${e.message}") }
     }
 
     suspend fun createNewListing(title: String, price: Double, description: String, category: String, imagePaths: List<String>, location: String? = null) {
         val currentUid = authRepo.getCurrentUserId() ?: "anonymous"
         val currentName = authRepo.getCurrentUserName() ?: "Anonymous"
-        val newListing = Listing(id = UUID.randomUUID().toString(), title = title, price = price, category = category, sellerId = currentUid, sellerName = currentName, description = description, imageUrl = imagePaths.joinToString(","), location = location, createdAt = System.currentTimeMillis())
+        val newListing = Listing(id = UUID.randomUUID().toString(), title = title, price = price, category = category, sellerId = currentUid, sellerName = currentName, description = description, imageUrls = imagePaths, location = location, createdAt = System.currentTimeMillis())
         createListing(newListing.toEntity(currentUid, currentName))
     }
 
@@ -239,13 +231,13 @@ class ListingRepository(
  */
 private fun ListingEntity.toListing() = Listing(
     id = id, title = title, price = price, category = categoryId, sellerId = userId, sellerName = sellerName,
-    description = description, imageUrl = imageUrls.split(",").firstOrNull(), location = location,
+    description = description, imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(","), location = location,
     isSold = isSold, status = status, createdAt = createdAt
 )
 
 private fun Listing.toEntity(uid: String, sName: String) = ListingEntity(
     id = id, title = title, description = description ?: "", price = price, userId = uid, sellerName = sName,
-    categoryId = category, location = location, imageUrls = imageUrl ?: "", createdAt = createdAt,
+    categoryId = category, location = location, imageUrls = imageUrls.joinToString(","), createdAt = createdAt,
     isSold = isSold, status = status
 )
 

@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,7 +41,7 @@ import java.util.*
 
 /**
  * Chat Screen - Professional Marketplace Flow.
- * Features: Banners, Guidance, One-time Reviews, and Profile Links.
+ * [FIXED]: Resolved ViewModel factory compilation errors.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,10 +50,18 @@ fun ChatScreen(
     otherUserId: String, otherUserName: String, currentUserId: String,
     chatRepository: ChatRepository, listingRepository: ListingRepository,
     onNavigateBack: () -> Unit,
-    onNavigateToPublicProfile: (String, String) -> Unit // New callback
+    onNavigateToPublicProfile: (String, String) -> Unit
 ) {
+    // [FIX]: Use the explicit ChatViewModelFactory to avoid anonymous class mismatch errors
     val viewModel: ChatViewModel = viewModel(
-        factory = ChatViewModelFactory(chatRepository, listingRepository, chatRoomId, listingId, currentUserId, otherUserId)
+        factory = ChatViewModelFactory(
+            chatRepository = chatRepository,
+            listingRepository = listingRepository,
+            chatRoomId = chatRoomId,
+            listingId = listingId,
+            currentUserId = currentUserId,
+            otherUserId = otherUserId
+        )
     )
 
     val uiState by viewModel.uiState.collectAsState()
@@ -106,7 +113,6 @@ fun ChatScreen(
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // High-Visibility Transaction Banner
             uiState.listing?.let { listing ->
                 TransactionBanner(
                     listing = listing, isSeller = uiState.isSeller, hasReviewed = uiState.hasReviewed,
@@ -159,7 +165,7 @@ private fun TransactionBanner(
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Item is Reserved", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                        Text("Click 'Complete' once the transaction is finished.", style = MaterialTheme.typography.bodySmall)
+                        Text(if (isSeller) "Click 'Complete' once the transaction is finished." else "Waiting for seller to complete transaction.", style = MaterialTheme.typography.bodySmall)
                     }
                     if (isSeller) {
                         Button(onClick = onCompleteSale, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)) {
@@ -190,8 +196,8 @@ private fun TransactionBanner(
 private fun ChatProductHeader(listing: Listing, onProfileClick: () -> Unit) {
     Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (!listing.imageUrl.isNullOrBlank()) {
-                AsyncImage(model = listing.imageUrl, contentDescription = null, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)), contentScale = ContentScale.Crop)
+            if (listing.imageUrls.isNotEmpty()) {
+                AsyncImage(model = listing.imageUrls.first(), contentDescription = null, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)), contentScale = ContentScale.Crop)
             } else {
                 Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { Text("📷", fontSize = 20.sp) }
             }
@@ -204,7 +210,7 @@ private fun ChatProductHeader(listing: Listing, onProfileClick: () -> Unit) {
                     ListingStatusBadge(isSold = listing.isSold, status = listing.status)
                 }
             }
-            TextButton(onClick = onProfileClick) { Text("Seller Profile", fontSize = 12.sp) }
+            TextButton(onClick = onProfileClick) { Text("Profile", fontSize = 12.sp) }
         }
     }
     HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)

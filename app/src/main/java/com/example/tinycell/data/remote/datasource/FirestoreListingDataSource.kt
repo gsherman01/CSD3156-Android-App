@@ -1,7 +1,6 @@
 package com.example.tinycell.data.remote.datasource
 
 import com.example.tinycell.data.remote.model.ListingDto
-import com.example.tinycell.data.remote.model.toEntity
 import com.example.tinycell.data.model.Listing
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
@@ -10,21 +9,14 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 /**
- * [PHASE 2]: Firestore Remote Data Source [FIRESTORE STUFF  ONLY]
- * Handles raw Firestore operations for Listings.
- * This class is separate from the Repository to decouple the SDK implementation.
+ * Firestore Remote Data Source for Listings.
+ * [PHASE 2]: Raw Firestore operations decoupled from the Repository.
  */
 class FirestoreListingDataSource(
     private val firestore: FirebaseFirestore
 ) {
-    // this is firestore stuff
     private val listingsCollection = firestore.collection("listings")
 
-    /**
-     * Fetches all listings in real-time.
-     * Maps Firestore documents directly to Domain models safely.
-     * In the FireStore database!
-     */
     fun fetchAllListings(): Flow<List<Listing>> = callbackFlow {
         val subscription = listingsCollection
             .whereEqualTo("isSold", false)
@@ -44,9 +36,6 @@ class FirestoreListingDataSource(
         awaitClose { subscription.remove() }
     }
 
-    /**
-     * Fetches a single listing by ID.
-     */
     suspend fun fetchListingById(id: String): Listing? {
         return try {
             val snapshot = listingsCollection.document(id).get().await()
@@ -56,11 +45,6 @@ class FirestoreListingDataSource(
         }
     }
 
-    /**
-     * Domain Mapping Helper
-     * Safely maps the DTO (Firestore structure) to the Listing (UI model).
-     * Handles missing fields with sensible defaults.
-     */
     private fun ListingDto.toListing(): Listing {
         return Listing(
             id = this.id,
@@ -70,7 +54,10 @@ class FirestoreListingDataSource(
             sellerId = this.userId,
             sellerName = this.sellerName.ifBlank { "Unknown Seller" },
             description = this.description,
-            imageUrl = this.imageUrls.firstOrNull()
+            imageUrls = this.imageUrls, // [FIXED]: Mapping the full list for Carousel support
+            isSold = this.isSold,
+            status = this.status,
+            createdAt = this.createdAt
         )
     }
 }

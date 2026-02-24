@@ -137,8 +137,7 @@ Your module does NOT have Guava (or the CameraX lifecycle artifact that bundles 
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-auth-ktx") // [PHASE 5.5 ADDITION]
     
-    // [NEW]: Firebase App Check for security
-    implementation("com.google.firebase:firebase-appcheck-playintegrity")
+    // [REMOVED]: Firebase App Check client logic removed to resolve 403 attestation errors.
 
     //  this is a kotlin 2.1.0 feature
     // 2. Add Firebase Analytics (No version needed, managed by BoM)

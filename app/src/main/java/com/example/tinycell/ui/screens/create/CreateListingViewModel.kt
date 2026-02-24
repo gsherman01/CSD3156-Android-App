@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for Creating a New Listing.
  * Polished with strict validation and location support per UX Audit.
+ * [UPDATE]: Images are now optional.
  */
 class CreateListingViewModel(private val repository: ListingRepository) : ViewModel() {
 
@@ -53,6 +54,7 @@ class CreateListingViewModel(private val repository: ListingRepository) : ViewMo
 
     /**
      * Enhanced submission logic with strict validation.
+     * Images are optional to lower friction for new listings.
      */
     fun submit() {
         val currentState = _uiState.value
@@ -77,11 +79,7 @@ class CreateListingViewModel(private val repository: ListingRepository) : ViewMo
             return
         }
 
-        // 4. Image Validation (At least 1)
-        if (currentState.imagePaths.isEmpty()) {
-            _uiState.value = _uiState.value.copy(errorMessage = "Please add at least one photo")
-            return
-        }
+        // [OPTIONAL]: Images are no longer mandatory.
 
         // If all valid, proceed to save
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)

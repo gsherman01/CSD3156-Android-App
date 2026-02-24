@@ -10,19 +10,12 @@ import kotlinx.coroutines.flow.map
 /**
  * FAVOURITE REPOSITORY
  *
- * Repository pattern implementation for user favourites (saved listings).
- * Handles many-to-many relationship between users and listings.
- *
- * Provides toggle functionality and JOIN queries to retrieve full listing details.
+ * Updated to support the new Listing model with image carousel.
  */
 class FavouriteRepository(private val favouriteDao: FavouriteDao) {
 
     /**
      * Toggle a listing's favourite status for a user.
-     * If already favourited, removes it. If not favourited, adds it.
-     *
-     * @param userId The user ID
-     * @param listingId The listing ID to toggle
      */
     suspend fun toggleFavourite(userId: String, listingId: String) {
         if (favouriteDao.isFavourite(userId, listingId)) {
@@ -38,9 +31,6 @@ class FavouriteRepository(private val favouriteDao: FavouriteDao) {
         }
     }
 
-    /**
-     * Add a listing to user's favourites.
-     */
     suspend fun addFavourite(userId: String, listingId: String) {
         favouriteDao.addFavourite(
             FavouriteEntity(
@@ -51,49 +41,31 @@ class FavouriteRepository(private val favouriteDao: FavouriteDao) {
         )
     }
 
-    /**
-     * Remove a listing from user's favourites.
-     */
     suspend fun removeFavourite(userId: String, listingId: String) {
         favouriteDao.removeFavourite(userId, listingId)
     }
 
-    /**
-     * Check if a listing is favourited by a user.
-     */
     suspend fun isFavourite(userId: String, listingId: String): Boolean {
         return favouriteDao.isFavourite(userId, listingId)
     }
 
     /**
-     * Get all favourite listings for a user (with full listing details).
-     * Uses JOIN query to retrieve complete Listing objects.
-     *
-     * @param userId The user ID
-     * @return Flow of Listing objects that the user has favourited
+     * Get all favourite listings for a user.
+     * Updated to handle List<String> for images.
      */
     fun getUserFavouriteListings(userId: String): Flow<List<Listing>> {
         return favouriteDao.getUserFavouriteListings(userId)
             .map { entities -> entities.map { it.toListing() } }
     }
 
-    /**
-     * Get count of favourites for a user.
-     */
     suspend fun getFavouriteCount(userId: String): Int {
         return favouriteDao.getFavouriteCount(userId)
     }
 
-    /**
-     * Get how many users favourited a specific listing (popularity metric).
-     */
     suspend fun getFavouriteCountForListing(listingId: String): Int {
         return favouriteDao.getFavouriteCountForListing(listingId)
     }
 
-    /**
-     * Remove all favourites for a user (cleanup operation).
-     */
     suspend fun removeAllFavouritesForUser(userId: String) {
         favouriteDao.removeAllFavouritesForUser(userId)
     }
@@ -101,7 +73,7 @@ class FavouriteRepository(private val favouriteDao: FavouriteDao) {
 
 /**
  * Extension function: Convert ListingEntity to Listing model.
- * Reused from JOIN query results.
+ * [FIXED]: Maps imageUrls string to List<String> for Carousel support.
  */
 private fun ListingEntity.toListing(): Listing {
     return Listing(
@@ -112,8 +84,9 @@ private fun ListingEntity.toListing(): Listing {
         sellerId = userId,
         sellerName = sellerName,
         description = description,
-        imageUrl = imageUrls.split(",").firstOrNull()?.takeIf { it.isNotBlank() },
+        imageUrls = if (imageUrls.isBlank()) emptyList() else imageUrls.split(","),
         isSold = isSold,
-        status = status
+        status = status,
+        createdAt = createdAt
     )
 }

@@ -30,7 +30,6 @@ import com.example.tinycell.data.model.Listing
 
 /**
  * LISTING CARD COMPONENT (2-Column Optimized)
- * Updated to support Public Profile navigation via onSellerClick.
  */
 @Composable
 fun ListingCard(
@@ -39,7 +38,7 @@ fun ListingCard(
     modifier: Modifier = Modifier,
     isFavourited: Boolean = false,
     onFavouriteClick: (() -> Unit)? = null,
-    onSellerClick: ((String, String) -> Unit)? = null // New parameter
+    onSellerClick: ((String, String) -> Unit)? = null
 ) {
     val favoriteScale by animateFloatAsState(
         targetValue = if (isFavourited) 1.2f else 1f,
@@ -56,7 +55,8 @@ fun ListingCard(
     ) {
         Column {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
-                ImagePlaceholder(imageUrl = listing.imageUrl, contentDescription = listing.title, modifier = Modifier.fillMaxSize())
+                ImagePlaceholder(imageUrl = listing.imageUrls.firstOrNull(), contentDescription = listing.title, modifier = Modifier.fillMaxSize())
+                
                 if (onFavouriteClick != null) {
                     IconButton(
                         onClick = onFavouriteClick,
@@ -73,7 +73,6 @@ fun ListingCard(
             }
 
             Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
-                // Seller Name - Now clickable to navigate to public profile
                 Text(
                     text = listing.sellerName,
                     style = MaterialTheme.typography.labelSmall,
@@ -106,15 +105,21 @@ fun ImagePlaceholder(imageUrl: String?, contentDescription: String, modifier: Mo
     }
 }
 
+/**
+ * LISTING STATUS BADGE
+ * [RESERVED_SUPPORTED]: Added distinct color for RESERVED state.
+ */
 @Composable
 fun ListingStatusBadge(isSold: Boolean, status: String) {
     val color = when {
-        isSold -> MaterialTheme.colorScheme.error
-        status == "PENDING" -> Color(0xFFFF9800)
-        else -> Color(0xFF4CAF50)
+        isSold || status == "SOLD" -> MaterialTheme.colorScheme.error
+        status == "RESERVED" -> Color(0xFF00BCD4) // Cyan for Reserved
+        status == "PENDING" -> Color(0xFFFF9800) // Orange for Offer made
+        else -> Color(0xFF4CAF50) // Green for Available
     }
     val text = when {
-        isSold -> "SOLD"
+        isSold || status == "SOLD" -> "SOLD"
+        status == "RESERVED" -> "RESERVED"
         status == "PENDING" -> "OFFER"
         else -> "NEW"
     }

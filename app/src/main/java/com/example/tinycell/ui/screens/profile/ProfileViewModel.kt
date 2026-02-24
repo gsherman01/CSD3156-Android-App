@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Updated ProfileViewModel with focus on personalization.
+ * Updated ProfileViewModel with dynamic sample data generation.
  */
 class ProfileViewModel(
     private val authRepository: AuthRepository,
@@ -23,26 +23,25 @@ class ProfileViewModel(
     private val _userName = MutableStateFlow(authRepository.getCurrentUserName() ?: "Anonymous")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
+    private val _isGeneratingListings = MutableStateFlow(false)
+    val isGeneratingListings: StateFlow<Boolean> = _isGeneratingListings.asStateFlow()
+
+    // [NEW]: State for the input field in Admin Panel
+    private val _sampleCountInput = MutableStateFlow("5")
+    val sampleCountInput: StateFlow<String> = _sampleCountInput.asStateFlow()
+
     private val _showEditDialog = MutableStateFlow(false)
     val showEditDialog: StateFlow<Boolean> = _showEditDialog.asStateFlow()
 
-    /**
-     * Show the profile edit dialog.
-     */
-    fun showEditDialog() {
-        _showEditDialog.value = true
+    fun onSampleCountChange(value: String) {
+        if (value.isEmpty() || value.all { it.isDigit() }) {
+            _sampleCountInput.value = value
+        }
     }
 
-    /**
-     * Hide the profile edit dialog.
-     */
-    fun hideEditDialog() {
-        _showEditDialog.value = false
-    }
+    fun showEditDialog() { _showEditDialog.value = true }
+    fun hideEditDialog() { _showEditDialog.value = false }
 
-    /**
-     * Update the user's display name.
-     */
     fun updateUserName(newName: String) {
         viewModelScope.launch {
             authRepository.updateUserName(newName)
@@ -69,6 +68,21 @@ class ProfileViewModel(
             authRepository.signInAnonymously()
             _userId.value = authRepository.getCurrentUserId() ?: "Not Logged In"
             _userName.value = authRepository.getCurrentUserName() ?: "Anonymous"
+        }
+    }
+
+    /**
+     * Triggers sample data generation.
+     */
+    fun generateSampleListings() {
+        val count = _sampleCountInput.value.toIntOrNull() ?: 5
+        viewModelScope.launch {
+            _isGeneratingListings.value = true
+            try {
+                appContainer.generateSampleListings(count)
+            } finally {
+                _isGeneratingListings.value = false
+            }
         }
     }
 }

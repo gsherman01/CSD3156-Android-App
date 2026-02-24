@@ -135,8 +135,10 @@ private fun MyListingCard(
     ) {
         Column {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
-                if (!listingWithChats.listing.imageUrl.isNullOrBlank()) {
-                    AsyncImage(model = listingWithChats.listing.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                // [FIXED]: Access the first image from the list
+                val thumbnail = listingWithChats.listing.imageUrls.firstOrNull()
+                if (!thumbnail.isNullOrBlank()) {
+                    AsyncImage(model = thumbnail, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
                     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { Text("📷") }
                 }

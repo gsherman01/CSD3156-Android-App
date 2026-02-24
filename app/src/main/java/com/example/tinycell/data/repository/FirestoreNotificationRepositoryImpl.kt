@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.tinycell.data.local.entity.NotificationEntity
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.PropertyName
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -13,7 +14,7 @@ private const val TAG = "FirestoreNotification"
 
 /**
  * Firestore implementation of RemoteNotificationRepository.
- * [STABILITY]: Handles permission errors without crashing.
+ * [FIXED]: Synchronized field names and added 'id' field for mapping compatibility.
  */
 class FirestoreNotificationRepositoryImpl(
     private val firestore: FirebaseFirestore
@@ -23,10 +24,21 @@ class FirestoreNotificationRepositoryImpl(
 
     override suspend fun sendNotification(notification: NotificationEntity): Result<Unit> {
         return try {
-            notificationsCollection.document(notification.id).set(notification).await()
+            val dto = NotificationEntityDto(
+                id = notification.id, // Ensure ID is passed to cloud doc
+                userId = notification.userId,
+                title = notification.title,
+                message = notification.message,
+                type = notification.type,
+                referenceId = notification.referenceId,
+                timestamp = notification.timestamp,
+                isRead = notification.isRead
+            )
+            Log.d(TAG, "OFFER_DEBUG: Pushing notification ${notification.id} to Cloud...")
+            notificationsCollection.document(notification.id).set(dto).await()
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error sending notification: ${e.message}")
+            Log.e(TAG, "OFFER_DEBUG: Cloud notification failed: ${e.message}")
             Result.failure(e)
         }
     }
@@ -36,17 +48,12 @@ class FirestoreNotificationRepositoryImpl(
             .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-                        Log.e(TAG, "PERMISSION DENIED: Check your Firestore Security Rules.")
-                    } else {
-                        Log.e(TAG, "Remote notification listener error: ${error.message}")
-                    }
-                    // Emit empty list instead of closing with error to prevent app crash
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
                 val notifications = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(NotificationEntityDto::class.java)?.toEntity(doc.id)
+                    // doc.id is used to populate the 'id' field of the DTO
+                    doc.toObject(NotificationEntityDto::class.java)?.apply { id = doc.id }?.toEntity()
                 } ?: emptyList()
                 trySend(notifications)
             }
@@ -54,17 +61,23 @@ class FirestoreNotificationRepositoryImpl(
     }
 }
 
+/**
+ * Internal DTO for Firestore compatibility.
+ */
 data class NotificationEntityDto(
-    val userId: String = "",
-    val title: String = "",
-    val message: String = "",
-    val type: String = "",
-    val referenceId: String = "",
-    val timestamp: Long = 0L,
-    val read: Boolean = false
+    var id: String = "", // [FIXED]: Added id field for CustomClassMapper compatibility
+    var userId: String = "",
+    var title: String = "",
+    var message: String = "",
+    var type: String = "",
+    var referenceId: String = "",
+    var timestamp: Long = 0L,
+    
+    @get:PropertyName("read") @set:PropertyName("read")
+    var isRead: Boolean = false
 ) {
-    fun toEntity(docId: String) = NotificationEntity(
-        id = docId, userId = userId, title = title, message = message,
-        type = type, referenceId = referenceId, timestamp = timestamp, isRead = read
+    fun toEntity() = NotificationEntity(
+        id = id, userId = userId, title = title, message = message,
+        type = type, referenceId = referenceId, timestamp = timestamp, isRead = isRead
     )
 }
