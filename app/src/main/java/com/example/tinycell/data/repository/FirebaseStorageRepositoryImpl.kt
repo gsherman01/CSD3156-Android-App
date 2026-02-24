@@ -3,18 +3,22 @@ package com.example.tinycell.data.repository
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Log
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-import java.io.File
+import java.io.InputStream
 import java.util.UUID
+
+private const val TAG = "FirebaseStorage"
 
 /**
  * [PHASE 6]: Refined Storage Logic.
- * Organizes images by userId for better management and security.
+ * Handles both File paths and Content URIs for reliable image uploads.
  */
 class FirebaseStorageRepositoryImpl(
     private val context: Context,
@@ -23,40 +27,42 @@ class FirebaseStorageRepositoryImpl(
 
     private val baseRef: StorageReference = storage.reference.child("listings")
 
-    /**
-     * [PHASE 6]: Upload with User Context.
-     * We don't take UID as parameter here to keep the interface simple; 
-     * instead, we assume the caller or Auth state is handled.
-     * For now, it puts everything in 'listings/public'.
-     */
     override suspend fun uploadImage(localPath: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val compressedData = compressImage(localPath) ?: return@withContext Result.failure(Exception("Compression failed"))
+            val compressedData = compressImage(localPath) 
+                ?: return@withContext Result.failure(Exception("Compression failed for path: $localPath"))
 
             val fileName = "${UUID.randomUUID()}.jpg"
-            // Organized folder structure
             val imageRef = baseRef.child("public").child(fileName)
 
             imageRef.putBytes(compressedData).await()
             val downloadUrl = imageRef.downloadUrl.await()
             Result.success(downloadUrl.toString())
         } catch (e: Exception) {
+            Log.e(TAG, "Upload failed: ${e.message}")
             Result.failure(e)
         }
     }
 
     private fun compressImage(path: String): ByteArray? {
         return try {
-            val file = File(path)
-            if (!file.exists()) return null
-
+            val uri = Uri.parse(path)
+            
+            // [FIX]: Use ContentResolver to handle content:// URIs from Camera/Gallery
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(path, options)
+            
+            var inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+            BitmapFactory.decodeStream(inputStream, null, options)
+            inputStream?.close()
 
             options.inSampleSize = calculateInSampleSize(options, 1080, 1080)
             options.inJustDecodeBounds = false
             
-            val bitmap = BitmapFactory.decodeFile(path, options) ?: return null
+            inputStream = context.contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream, null, options)
+            inputStream?.close()
+            
+            if (bitmap == null) return null
             
             val outputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
@@ -64,6 +70,7 @@ class FirebaseStorageRepositoryImpl(
             bitmap.recycle()
             result
         } catch (e: Exception) {
+            Log.e(TAG, "Compression error: ${e.message}")
             null
         }
     }
