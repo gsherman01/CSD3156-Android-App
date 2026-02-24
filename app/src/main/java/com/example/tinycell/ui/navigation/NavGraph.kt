@@ -1,6 +1,6 @@
 package com.example.tinycell.ui.navigation
 
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,6 +29,11 @@ fun TinyCellNavHost(
     appContainer: com.example.tinycell.di.AppContainer,
     startDestination: String = Screen.Home.route
 ) {
+    // [FIX]: Reactively observe the current user ID
+    // This ensures that switching mock accounts in the Admin panel 
+    // instantly refreshes all screens with the new UID.
+    val currentUserId by authRepository.userIdFlow.collectAsState()
+
     NavHost(
         navController = navController,
         startDestination = startDestination
@@ -92,10 +97,11 @@ fun TinyCellNavHost(
             val listingTitle = backStackEntry.arguments?.getString("listingTitle")?.let { Screen.Chat.decodeTitle(it) } ?: ""
             val otherUserId = backStackEntry.arguments?.getString("otherUserId") ?: ""
             val otherUserName = backStackEntry.arguments?.getString("otherUserName")?.let { Screen.Chat.decodeName(it) } ?: ""
+            
             ChatScreen(
                 chatRoomId = chatRoomId, listingId = listingId, listingTitle = listingTitle,
                 otherUserId = otherUserId, otherUserName = otherUserName,
-                currentUserId = authRepository.getCurrentUserId() ?: "",
+                currentUserId = currentUserId ?: "", // [FIX]: Uses reactive UID
                 chatRepository = chatRepository, listingRepository = listingRepository,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToPublicProfile = { userId, userName ->

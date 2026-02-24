@@ -128,7 +128,15 @@ fun AdminDebugPanel(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = onGenerate, enabled = !isGenerating && sampleCount.isNotEmpty()) {
-                if (isGenerating) CircularProgressIndicator(modifier = Modifier.size(16.dp)) else Text("Generate")
+                if (isGenerating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Generate")
+                }
             }
         }
 
