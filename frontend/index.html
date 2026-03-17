@@ -14,18 +14,34 @@
     />
     <style>
       body { font-family: Arial, sans-serif; margin: 0; }
-      #toolbar { padding: 12px; background: #f5f5f5; display: flex; gap: 8px; align-items: center; }
-      #map { height: calc(100vh - 64px); }
-      #status { min-width: 300px; font-size: 0.9rem; }
+      #toolbar {
+        padding: 12px;
+        background: #f5f5f5;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        align-items: center;
+      }
+      #toolbar input, #toolbar button { padding: 8px; font-size: 0.9rem; }
+      #map { height: calc(100vh - 170px); }
+      #status { grid-column: 1 / -1; font-size: 0.9rem; color: #333; }
+      .hint { grid-column: 1 / -1; font-size: 0.8rem; color: #666; }
     </style>
   </head>
   <body>
-    <!-- Minimal controls to test upload and query endpoints -->
+    <!-- Minimal controls to test upload and analysis endpoints -->
     <div id="toolbar">
-      <input type="file" id="geojsonFile" accept=".geojson,.json" />
-      <button id="uploadBtn">Upload</button>
-      <button id="bufferBtn">Buffer (0.01)</button>
-      <button id="nearestBtn">Nearest</button>
+      <input type="file" id="geojsonFilePrimary" accept=".geojson,.json" />
+      <input type="file" id="geojsonFileSecondary" accept=".geojson,.json" />
+      <input type="number" id="bufferRadius" step="0.001" value="0.01" placeholder="Buffer radius" />
+
+      <button id="uploadPrimaryBtn">Upload Primary</button>
+      <button id="uploadSecondaryBtn">Upload Secondary</button>
+      <button id="bufferBtn">Buffer analysis</button>
+      <button id="spatialJoinBtn">Spatial join</button>
+      <button id="nearestBtn">Nearest feature</button>
+
+      <div class="hint">Spatial join and nearest use both primary + secondary datasets.</div>
       <span id="status">Ready.</span>
     </div>
     <div id="map"></div>

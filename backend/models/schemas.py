@@ -19,7 +19,7 @@ class UploadResponse(BaseModel):
 
 
 class SpatialQueryRequest(BaseModel):
-    """Example request shape for spatial operations."""
+    """Example request shape for basic spatial operations."""
 
     operation: str = Field(..., description="buffer | nearest")
     radius: Optional[float] = Field(default=None, description="Required for buffer")

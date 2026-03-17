@@ -4,23 +4,36 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
 }).addTo(map);
 
-let activeLayer = null; // currently displayed GeoJSON layer
-let uploadedKey = null; // storage key/path returned by backend
+let activeLayer = null;
+let primaryKey = null;   // storage key/path returned for primary upload
+let secondaryKey = null; // storage key/path returned for secondary upload
 
 const statusEl = document.getElementById('status');
 const setStatus = (text) => (statusEl.textContent = text);
 
-async function uploadGeoJSON() {
-  const fileInput = document.getElementById('geojsonFile');
+function renderGeoJSON(geojson) {
+  if (!geojson) return;
+  if (activeLayer) map.removeLayer(activeLayer);
+  activeLayer = L.geoJSON(geojson).addTo(map);
+  if (activeLayer.getBounds && activeLayer.getBounds().isValid()) {
+    map.fitBounds(activeLayer.getBounds());
+  }
+}
+
+async function uploadGeoJSON(kind) {
+  const fileInput = kind === 'primary'
+    ? document.getElementById('geojsonFilePrimary')
+    : document.getElementById('geojsonFileSecondary');
+
   if (!fileInput.files.length) {
-    setStatus('Choose a GeoJSON file first.');
+    setStatus(`Choose a ${kind} GeoJSON file first.`);
     return;
   }
 
-  // Send file to POST /api/upload for validation + storage.
   const formData = new FormData();
   formData.append('file', fileInput.files[0]);
 
+  // Prompt 5: integration with backend upload API.
   const res = await fetch('/api/upload', { method: 'POST', body: formData });
   const data = await res.json();
   if (!res.ok || !data.success) {
@@ -28,43 +41,57 @@ async function uploadGeoJSON() {
     return;
   }
 
-  uploadedKey = data.storage_key;
-  setStatus(`Uploaded ${data.filename} (${data.feature_count} features)`);
+  if (kind === 'primary') {
+    primaryKey = data.storage_key;
+  } else {
+    secondaryKey = data.storage_key;
+  }
 
-  // Render the original uploaded file on the map.
+  setStatus(`${kind} uploaded: ${data.filename} (${data.feature_count} features)`);
+
+  // Render uploaded file for quick visual check.
   const text = await fileInput.files[0].text();
-  const geojson = JSON.parse(text);
-  if (activeLayer) map.removeLayer(activeLayer);
-  activeLayer = L.geoJSON(geojson).addTo(map);
-  map.fitBounds(activeLayer.getBounds());
+  renderGeoJSON(JSON.parse(text));
 }
 
-async function runQuery(operation, radius = null) {
-  if (!uploadedKey) {
-    setStatus('Upload a dataset first.');
+async function callAnalysis(operation) {
+  if (!primaryKey) {
+    setStatus('Upload primary dataset first.');
     return;
   }
 
-  const params = new URLSearchParams({ dataset_path: uploadedKey, operation });
-  if (radius !== null) params.set('radius', radius);
+  const params = new URLSearchParams({
+    source: primaryKey,
+    operation,
+  });
 
-  const res = await fetch(`/api/spatial-query?${params.toString()}`);
+  if (operation === 'buffer') {
+    const radius = document.getElementById('bufferRadius').value || '0.01';
+    params.set('radius', radius);
+  }
+
+  if (operation === 'intersection' || operation === 'nearest') {
+    if (!secondaryKey) {
+      setStatus('Upload secondary dataset first for this operation.');
+      return;
+    }
+    params.set('secondary_source', secondaryKey);
+  }
+
+  // Prompt 5: integration with backend analysis API.
+  const res = await fetch(`/api/analyze?${params.toString()}`);
   const data = await res.json();
-  if (!res.ok) {
-    setStatus(`Query failed: ${data.detail || 'Unknown error'}`);
+  if (!res.ok || !data.success) {
+    setStatus(`Analysis failed: ${data.detail || data.message || 'Unknown error'}`);
     return;
   }
 
-  setStatus(`${operation} complete.`);
-
-  // Buffer returns a GeoJSON preview for quick visual inspection.
-  if (operation === 'buffer' && data.result.preview_geojson) {
-    if (activeLayer) map.removeLayer(activeLayer);
-    activeLayer = L.geoJSON(JSON.parse(data.result.preview_geojson)).addTo(map);
-    map.fitBounds(activeLayer.getBounds());
-  }
+  setStatus(`${operation} done: ${data.feature_count} result features`);
+  renderGeoJSON(data.geojson);
 }
 
-document.getElementById('uploadBtn').addEventListener('click', uploadGeoJSON);
-document.getElementById('bufferBtn').addEventListener('click', () => runQuery('buffer', 0.01));
-document.getElementById('nearestBtn').addEventListener('click', () => runQuery('nearest'));
+document.getElementById('uploadPrimaryBtn').addEventListener('click', () => uploadGeoJSON('primary'));
+document.getElementById('uploadSecondaryBtn').addEventListener('click', () => uploadGeoJSON('secondary'));
+document.getElementById('bufferBtn').addEventListener('click', () => callAnalysis('buffer'));
+document.getElementById('spatialJoinBtn').addEventListener('click', () => callAnalysis('intersection'));
+document.getElementById('nearestBtn').addEventListener('click', () => callAnalysis('nearest'));
