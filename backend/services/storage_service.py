@@ -1,4 +1,11 @@
-"""Storage abstraction for local mode and optional AWS S3 mode."""
+"""Storage abstraction for local mode and optional AWS S3 mode.
+
+Switching strategy:
+- Keep `STORAGE_PROVIDER=local` for Render/local testing.
+- Set `STORAGE_PROVIDER=aws` and configure AWS env vars for S3 storage.
+
+This abstraction keeps API endpoints unchanged while storage backend changes.
+"""
 
 from __future__ import annotations
 
