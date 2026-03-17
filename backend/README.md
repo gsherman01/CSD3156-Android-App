@@ -43,7 +43,13 @@ uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ## Environment config
 Use `cloud/configs/env.example` as the source of truth for runtime variables.
 
+## Local vs Cloud (simple explanation)
+- **Local mode:** you start the server from your terminal, open localhost, and files are saved in `data/uploads`.
+- **Render mode:** Render starts the same app command automatically, users open a Render URL, and env vars are set in the Render dashboard.
+- **AWS target mode:** API runs behind API Gateway + Lambda, storage moves to S3, but routes and frontend workflow remain the same.
+
 ## AWS adaptation points
 - `backend/services/storage_service.py` for S3/local storage switching.
 - `backend/lambda_handler.py` for Lambda deployment integration.
 - `backend/main.py` for request logging and centralized error handling.
+- `cloud/deployment.md` for step-by-step migration strategy.
