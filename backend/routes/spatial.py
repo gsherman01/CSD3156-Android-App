@@ -1,10 +1,13 @@
 """Spatial query routes for GIS analysis endpoints."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.models.schemas import AnalysisResponse, SpatialQueryResponse
 from backend.services.gis_service import gis_service
 
+logger = logging.getLogger("backend.spatial")
 router = APIRouter(prefix="/api", tags=["spatial"])
 
 
@@ -14,15 +17,18 @@ def spatial_query(
     operation: str = Query(..., description="buffer | nearest"),
     radius: float | None = Query(default=None, description="Buffer radius in map units."),
 ) -> SpatialQueryResponse:
-    """Run a lightweight spatial operation over a previously uploaded dataset."""
     try:
         result = gis_service.run_spatial_query(dataset_path, operation, radius)
+        logger.info("Spatial query complete: operation=%s dataset=%s", operation, dataset_path)
         return SpatialQueryResponse(operation=operation, result=result)
     except RuntimeError as exc:
+        logger.error("Spatial query runtime error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
+        logger.warning("Spatial query validation error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        logger.exception("Spatial query failed")
         raise HTTPException(status_code=500, detail=f"Spatial query failed: {exc}") from exc
 
 
@@ -36,12 +42,6 @@ def analyze(
         description="Second local path or s3:// URI (required for intersection/nearest)",
     ),
 ) -> AnalysisResponse:
-    """Perform GIS analysis and return GeoJSON for frontend map rendering.
-
-    AWS Lambda hook:
-    - This route only orchestrates HTTP concerns.
-    - `gis_service.analyze_geojson` can be reused in a Lambda handler directly.
-    """
     try:
         geojson = gis_service.analyze_geojson(
             source=source,
@@ -49,16 +49,27 @@ def analyze(
             radius=radius,
             secondary_source=secondary_source,
         )
+        feature_count = len(geojson.get("features", []))
+        logger.info(
+            "Analysis complete: operation=%s source=%s secondary=%s features=%s",
+            operation,
+            source,
+            secondary_source,
+            feature_count,
+        )
         return AnalysisResponse(
             success=True,
             operation=operation,
             source=source,
-            feature_count=len(geojson.get("features", [])),
+            feature_count=feature_count,
             geojson=geojson,
         )
     except RuntimeError as exc:
+        logger.error("Analysis runtime error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
+        logger.warning("Analysis validation error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        logger.exception("Analysis failed")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}") from exc
