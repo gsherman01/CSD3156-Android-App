@@ -3,6 +3,9 @@
 Switching strategy:
 - Keep `STORAGE_PROVIDER=local` for Render/local testing.
 - Set `STORAGE_PROVIDER=aws` and fill S3 env vars to migrate.
+    AWS adaptation notes:
+    - Local provider writes files to disk for Render/local testing.
+    - AWS provider should upload to S3 using boto3 (stubbed here for skeleton use). 
 """
 
 from __future__ import annotations
