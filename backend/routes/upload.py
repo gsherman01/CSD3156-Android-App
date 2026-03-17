@@ -13,7 +13,11 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse:
         raise HTTPException(status_code=400, detail="Only GeoJSON files are supported.")
 
     storage_key = await storage_service.save_upload(file)
-    summary = gis_service.summarize_geojson(storage_key)
+
+    try:
+        summary = gis_service.summarize_geojson(storage_key)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return UploadResponse(
         filename=file.filename,

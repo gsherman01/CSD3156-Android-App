@@ -2,8 +2,12 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.9
 pydantic-settings==2.5.2
-geopandas==1.0.1
-shapely==2.0.6
 pandas==2.2.3
 boto3==1.35.36
 mangum==0.17.0
+
+# GIS dependencies:
+# - kept pinned for consistent behavior on Python 3.11/3.12
+# - skipped on Python 3.13+ (not all wheels available yet, esp. Windows + 3.14)
+geopandas==1.0.1; python_version < "3.13"
+shapely==2.0.6; python_version < "3.13"

@@ -1,9 +1,24 @@
 # Backend Quick Start
 
-## Install
+## Recommended Python version
+Use **Python 3.11 or 3.12** for full GIS support (GeoPandas + Shapely).
+
+If you use Python 3.14 on Windows CMD, Shapely may fail to build because GEOS headers/tools are missing.
+This project now installs core API dependencies on 3.14, but GIS endpoints will return a clear 503 until GIS deps are available.
+
+## Install (WSL recommended)
 ```bash
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+## Install (Windows CMD)
+```bat
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
