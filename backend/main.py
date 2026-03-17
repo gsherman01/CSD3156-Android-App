@@ -1,5 +1,10 @@
-"""FastAPI entrypoint with cloud-friendly logging and error handling."""
+"""FastAPI entrypoint with cloud-friendly logging and error handling.
+yeah quite abit of logging 
 
+AWS adaptation notes: is this done?
+- For Lambda, wrap this ASGI app with Mangum and deploy via API Gateway.
+- Keep routes/services decoupled so handlers can be reused in serverless functions.
+"""
 import logging
 import time
 

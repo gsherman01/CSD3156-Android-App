@@ -1,5 +1,9 @@
 # Cloud Deployment Notes
 
+//HUHHHH what is this ?
+//is this for me or for the professors,
+
+
 ## Local / Render mode
 - Install dependencies from `requirements.txt`.
 - Default storage mode is local (`STORAGE_PROVIDER=local`).
