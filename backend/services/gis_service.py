@@ -7,8 +7,13 @@ AWS adaptation notes:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+
+from backend.config import settings
+
+logger = logging.getLogger("backend.gis")
 
 
 def _load_geopandas():
@@ -29,29 +34,30 @@ class GISService:
     """All GIS operations used by API routes."""
 
     def _read_geojson_source(self, source: str):
-        """Read a GeoJSON source from local path or S3 URI.
-
-        S3 hook:
-        - In AWS mode this method can be run inside Lambda.
-        - It currently downloads the object with boto3 to a temp file, then reads with GeoPandas.
-        """
+        """Read a GeoJSON source from local path or S3 URI."""
         gpd = _load_geopandas()
 
         if source.startswith("s3://"):
-            # Placeholder hook for AWS migration: this flow is Lambda-friendly.
-            # Ensure IAM role has s3:GetObject permission on the bucket/key.
             try:
                 import boto3
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError("boto3 is required to read s3:// sources.") from exc
 
             bucket, key = source.removeprefix("s3://").split("/", 1)
-            s3 = boto3.client("s3")
+            client_kwargs = {"region_name": settings.aws_region}
+            if settings.aws_access_key_id and settings.aws_secret_access_key:
+                client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
+                client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+                if settings.aws_session_token:
+                    client_kwargs["aws_session_token"] = settings.aws_session_token
 
+            s3 = boto3.client("s3", **client_kwargs)
             with NamedTemporaryFile(suffix=".geojson", delete=True) as tmp:
                 s3.download_file(bucket, key, tmp.name)
+                logger.info("Downloaded source from S3: s3://%s/%s", bucket, key)
                 return gpd.read_file(tmp.name)
 
+        logger.info("Reading local GeoJSON source: %s", source)
         return gpd.read_file(source)
 
     def summarize_geojson(self, file_path: str) -> dict:
@@ -99,16 +105,6 @@ class GISService:
         radius: float | None = None,
         secondary_source: str | None = None,
     ) -> dict:
-        """Run GIS analysis and return GeoJSON suitable for frontend mapping.
-
-        Supported operations:
-        - buffer: uses `radius` and returns buffered geometries.
-        - intersection: requires `secondary_source` and overlays both datasets.
-        - nearest: creates line geometries from each feature to nearest in secondary dataset.
-
-        AWS hook:
-        - This method is pure service logic and can be called from Lambda handlers.
-        """
         gpd = _load_geopandas()
         base_gdf = self._read_geojson_source(source)
 
@@ -135,7 +131,6 @@ class GISService:
             if base_gdf.crs and other_gdf.crs and base_gdf.crs != other_gdf.crs:
                 other_gdf = other_gdf.to_crs(base_gdf.crs)
 
-            # Build a line from each source feature centroid to nearest target centroid.
             source_centroids = base_gdf.geometry.centroid
             target_centroids = other_gdf.geometry.centroid
 
@@ -153,7 +148,6 @@ class GISService:
         raise ValueError(f"Unsupported analysis operation: {operation}")
 
 
-# Ensure default upload path exists in local mode.
-Path("data/uploads").mkdir(parents=True, exist_ok=True)
+Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 
 gis_service = GISService()
