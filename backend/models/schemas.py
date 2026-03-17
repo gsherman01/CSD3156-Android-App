@@ -26,7 +26,18 @@ class SpatialQueryRequest(BaseModel):
 
 
 class SpatialQueryResponse(BaseModel):
-    """Response returned by spatial query endpoint."""
+    """Response returned by legacy spatial query endpoint."""
 
     operation: str
     result: Dict[str, Any]
+
+
+class AnalysisResponse(BaseModel):
+    """GeoJSON-first response used by the richer analysis endpoint."""
+
+    success: bool
+    operation: str
+    source: str
+    feature_count: int
+    geojson: Dict[str, Any]
+    message: str = "Analysis complete"
