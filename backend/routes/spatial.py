@@ -1,3 +1,5 @@
+"""Spatial query route for simple GIS operations."""
+
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.models.schemas import SpatialQueryResponse
@@ -12,6 +14,7 @@ def spatial_query(
     operation: str = Query(..., description="buffer | nearest"),
     radius: float | None = Query(default=None, description="Buffer radius in map units."),
 ) -> SpatialQueryResponse:
+    """Run a lightweight spatial operation over a previously uploaded dataset."""
     try:
         result = gis_service.run_spatial_query(dataset_path, operation, radius)
         return SpatialQueryResponse(operation=operation, result=result)

@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GIS Cloud Platform</title>
+
+    <!-- Leaflet CSS for map rendering -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -18,6 +20,7 @@
     </style>
   </head>
   <body>
+    <!-- Minimal controls to test upload and query endpoints -->
     <div id="toolbar">
       <input type="file" id="geojsonFile" accept=".geojson,.json" />
       <button id="uploadBtn">Upload</button>
@@ -27,6 +30,7 @@
     </div>
     <div id="map"></div>
 
+    <!-- Leaflet JS and app logic -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>
   </body>

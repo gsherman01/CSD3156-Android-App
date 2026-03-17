@@ -9,6 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Environment-driven settings used across API and services."""
+
     app_name: str = "GIS Cloud API"
     storage_provider: str = "local"  # local | aws
     upload_dir: str = "data/uploads"
