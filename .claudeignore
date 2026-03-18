@@ -1,0 +1,22 @@
+# Ignore Android application - project is complete
+app/
+App TinyCell/
+
+# Android build artifacts
+build/
+.gradle/
+.idea/
+local.properties
+
+# Android APK outputs
+*.apk
+*.aab
+
+# Git directory
+.git/
+
+# Project documents (not needed for development)
+*.docx
+
+# Other unnecessary files for GIS platform development
+nul
