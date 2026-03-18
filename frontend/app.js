@@ -1,12 +1,22 @@
 // Minimal Leaflet UI for testing backend GIS endpoints.
+const API_BASE_URL = (
+  window.location.hostname.includes('localhost') ||
+  window.location.hostname.includes('127.0.0.1') ||
+  window.location.hostname.includes('onrender.com')
+)
+  ? ''
+  : 'https://YOUR_API_GATEWAY_URL_HERE';
+
+console.log('Using API base URL:', API_BASE_URL || '(relative)');
+
 const map = L.map('map').setView([1.3521, 103.8198], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
 }).addTo(map);
 
 let activeLayer = null;
-let primaryKey = null;   // storage key/path returned for primary upload
-let secondaryKey = null; // storage key/path returned for secondary upload
+let primaryKey = null;
+let secondaryKey = null;
 
 const statusEl = document.getElementById('status');
 const setStatus = (text) => (statusEl.textContent = text);
@@ -33,8 +43,7 @@ async function uploadGeoJSON(kind) {
   const formData = new FormData();
   formData.append('file', fileInput.files[0]);
 
-  // Prompt 5: integration with backend upload API.
-  const res = await fetch('/api/upload', { method: 'POST', body: formData });
+  const res = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: formData });
   const data = await res.json();
   if (!res.ok || !data.success) {
     setStatus(`Upload failed: ${data.message || data.detail || 'Unknown error'}`);
@@ -49,7 +58,6 @@ async function uploadGeoJSON(kind) {
 
   setStatus(`${kind} uploaded: ${data.filename} (${data.feature_count} features)`);
 
-  // Render uploaded file for quick visual check.
   const text = await fileInput.files[0].text();
   renderGeoJSON(JSON.parse(text));
 }
@@ -78,8 +86,7 @@ async function callAnalysis(operation) {
     params.set('secondary_source', secondaryKey);
   }
 
-  // Prompt 5: integration with backend analysis API.
-  const res = await fetch(`/api/analyze?${params.toString()}`);
+  const res = await fetch(`${API_BASE_URL}/api/analyze?${params.toString()}`);
   const data = await res.json();
   if (!res.ok || !data.success) {
     setStatus(`Analysis failed: ${data.detail || data.message || 'Unknown error'}`);

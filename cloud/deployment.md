@@ -17,6 +17,7 @@ This guide is intentionally beginner-friendly and practical.
    uvicorn backend.main:app --reload --host 0.0.0.0 --port ${PORT:-8000}
    ```
 3. Backend is available at `http://localhost:8000`.
+4. API docs are available at `http://localhost:8000/docs`.
 
 ### Run frontend locally
 - Frontend is served by FastAPI static mount.
@@ -25,6 +26,8 @@ This guide is intentionally beginner-friendly and practical.
 ### Local file storage behavior
 - Keep `STORAGE_PROVIDER=local`.
 - Uploaded files are written to `UPLOAD_DIR` (default: `data/uploads`).
+- Analysis results are written separately to `RESULTS_DIR` (default: `data/results`).
+- Lightweight dataset metadata is tracked in `METADATA_REGISTRY_PATH` for demo/Render workflows.
 
 ---
 
@@ -36,8 +39,8 @@ This guide is intentionally beginner-friendly and practical.
 3. Select branch (for example `main` or your working branch).
 
 ### Backend hosting on Render
-- Runtime: Python.
-- Build command (example):
+- Runtime: Python 3.12 recommended.
+- Build command:
   ```bash
   pip install -r requirements.txt
   ```
@@ -47,7 +50,7 @@ This guide is intentionally beginner-friendly and practical.
   ```
 
 ### Frontend serving on Render
-- No separate frontend service is required in this architecture.
+- No separate frontend service is required in this intermediate architecture.
 - FastAPI serves frontend files directly at the root path (`/`).
 
 ### Required Render configuration
@@ -69,13 +72,31 @@ This guide is intentionally beginner-friendly and practical.
 ## 3) AWS Migration Plan (Final Target)
 
 ### Backend to AWS Lambda
-- Keep service logic in `backend/services/*` (already done) so route logic can be reused.
+- Keep service logic in `backend/services/*` so route logic can be reused.
 - Use `backend/lambda_handler.py` (Mangum adapter) as Lambda entrypoint.
+- Recommended Lambda baseline:
+  - Runtime: Python 3.12
+  - Memory: 512 MB minimum
+  - Timeout: 60 seconds minimum
+  - Increase timeout to 300 seconds for heavier GIS tasks if needed
+
+### Important Lambda packaging note
+- GeoPandas and related GIS libraries are large.
+- ZIP deployment may hit Lambda size limits.
+- Recommended approach:
+  1. Try a prebuilt GeoPandas Lambda layer first.
+  2. If that is not practical in your Learner Lab, deploy Lambda as a container image.
 
 ### API Gateway replaces direct backend URL
 - API Gateway becomes public HTTP endpoint.
 - It forwards requests to Lambda.
 - Existing route structure (`/api/upload`, `/api/analyze`, etc.) can remain the same.
+- Test `GET /health` through API Gateway after deployment.
+
+### Frontend in final AWS setup
+- Do **not** serve frontend from Lambda.
+- Host frontend separately, typically on S3 static website hosting (optionally with CloudFront later).
+- Update frontend API base URL to your API Gateway URL.
 
 ### S3 replaces local file storage
 - Set `STORAGE_PROVIDER=aws`.
@@ -95,6 +116,7 @@ This guide is intentionally beginner-friendly and practical.
 - Storage abstraction (`local` vs `aws`) behind one service API.
 - Centralized config via environment variables.
 - Route layer handles HTTP only; heavy logic stays in service modules.
+- Static frontend mount is disabled automatically in Lambda environments.
 
 ### Must NOT be hardcoded
 - Port number
@@ -102,11 +124,20 @@ This guide is intentionally beginner-friendly and practical.
 - AWS bucket/region
 - AWS credentials
 - Environment mode
+- API Gateway production URL
 
 ### Environment variable usage
 - Local: safe defaults work out of the box.
 - Render: set env vars in Render dashboard.
-- AWS: set env vars in Lambda configuration / IAM role context.
+- AWS: set env vars in Lambda configuration or rely on IAM role.
+
+### Production CORS note
+- `allow_origins=["*"]` is okay for development.
+- In production, change it to your actual frontend URL(s), such as:
+  - local testing URL
+  - Render URL
+  - S3 frontend URL
+- In API Gateway, ensure CORS/OPTIONS is enabled for browser preflight requests.
 
 ---
 
@@ -127,7 +158,7 @@ This guide is intentionally beginner-friendly and practical.
 - User experience: public access over internet, cloud logs, persistent service URL.
 
 ### What changes when moving Local → Render → AWS
-- **Changes:** hosting location, URL, environment variable source, storage backend.
-- **Stays same:** API endpoints, frontend behavior, overall user workflow, core GIS logic.
+- **Changes:** hosting location, URL, environment variable source, storage backend, and final frontend hosting location.
+- **Stays same:** API endpoints, frontend workflow, request/response structure, and core GIS logic.
 
 This stability is the main reason the architecture uses config + service abstraction.

@@ -1,21 +1,18 @@
-"""FastAPI entrypoint with cloud-friendly logging and error handling.
-yeah quite abit of logging 
+"""FastAPI entrypoint with cloud-friendly logging and error handling."""
 
-AWS adaptation notes: is this done?
-- For Lambda, wrap this ASGI app with Mangum and deploy via API Gateway.
-- Keep routes/services decoupled so handlers can be reused in serverless functions.
-"""
 import logging
+import os
 import time
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import settings
-from backend.routes.spatial import router as spatial_router
-from backend.routes.upload import router as upload_router
+from .config import settings
+from .routes.spatial import router as spatial_router
+from .routes.upload import router as upload_router
 
 # Configure logging once for stdout (works well for Render/cloud logs).
 logging.basicConfig(
@@ -26,6 +23,7 @@ logger = logging.getLogger("backend.app")
 
 app = FastAPI(title=settings.app_name)
 
+# Keep this open in development; narrow to specific origins for production/S3 hosting.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,15 +36,19 @@ app.add_middleware(
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
     """Log request method/path/status/latency for basic monitoring."""
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
     start = time.perf_counter()
     response = await call_next(request)
     duration_ms = (time.perf_counter() - start) * 1000
+    response.headers["X-Request-ID"] = request_id
     logger.info(
-        "%s %s -> %s (%.2f ms)",
+        "%s %s -> %s (%.2f ms) request_id=%s",
         request.method,
         request.url.path,
         response.status_code,
         duration_ms,
+        request_id,
     )
     return response
 
@@ -54,15 +56,24 @@ async def request_logging_middleware(request: Request, call_next):
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """Catch-all handler so unexpected errors are logged and structured."""
-    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    logger.exception(
+        "Unhandled error on %s %s request_id=%s",
+        request.method,
+        request.url.path,
+        getattr(request.state, "request_id", "unknown"),
+    )
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 app.include_router(upload_router)
 app.include_router(spatial_router)
 
-# Keep static hosting local-friendly; on AWS this can move to S3/CloudFront.
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+# Static files are useful locally/Render, but should not be served by Lambda.
+if not os.environ.get("AWS_EXECUTION_ENV"):
+    try:
+        app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+    except RuntimeError:
+        logger.warning("Frontend directory not found, skipping static file mount")
 
 
 @app.get("/health")
