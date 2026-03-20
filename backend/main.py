@@ -68,14 +68,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(upload_router)
 app.include_router(spatial_router)
 
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok", "app": settings.app_name, "env": settings.app_env}
+
+
 # Static files are useful locally/Render, but should not be served by Lambda.
+# Keep this mount after explicit API/health routes so it does not swallow paths like /health.
 if not os.environ.get("AWS_EXECUTION_ENV"):
     try:
         app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
     except RuntimeError:
         logger.warning("Frontend directory not found, skipping static file mount")
-
-
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "app": settings.app_name, "env": settings.app_env}
