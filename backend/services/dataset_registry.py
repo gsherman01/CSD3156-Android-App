@@ -1,0 +1,54 @@
+"""Lightweight dataset metadata registry for local/Render demo workflows.
+
+This keeps uploaded dataset metadata in one JSON file so developers can inspect
+what has been uploaded without introducing a full database yet.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
+
+from ..config import settings
+
+logger = logging.getLogger("backend.registry")
+
+
+class DatasetRegistry:
+    """Stores basic dataset metadata for uploads."""
+
+    def __init__(self) -> None:
+        self.registry_path = Path(settings.metadata_registry_path)
+        self.registry_path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.registry_path.exists():
+            self.registry_path.write_text("[]", encoding="utf-8")
+
+    def _read_all(self) -> list[dict]:
+        return json.loads(self.registry_path.read_text(encoding="utf-8"))
+
+    def _write_all(self, rows: list[dict]) -> None:
+        self.registry_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+
+    def create_dataset_record(self, filename: str, storage_key: str, summary: dict) -> str:
+        dataset_id = str(uuid4())
+        rows = self._read_all()
+        rows.append(
+            {
+                "dataset_id": dataset_id,
+                "filename": filename,
+                "storage_key": storage_key,
+                "feature_count": summary.get("feature_count"),
+                "crs": summary.get("crs"),
+                "bounds": summary.get("bounds"),
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        self._write_all(rows)
+        logger.info("Dataset metadata recorded: dataset_id=%s storage_key=%s", dataset_id, storage_key)
+        return dataset_id
+
+
+registry = DatasetRegistry()
