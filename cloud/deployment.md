@@ -40,7 +40,7 @@ This guide is intentionally beginner-friendly and practical.
 
 ### Backend hosting on Render
 - Runtime: Python 3.12 recommended.
-- Add `runtime.txt` with a Python 3.12 value so Render does not default to a newer runtime that skips GeoPandas.
+- Add `.python-version` with a Python 3.12 value so Render does not default to a newer runtime that skips GeoPandas.
 - Build command:
   ```bash
   pip install -r requirements.txt

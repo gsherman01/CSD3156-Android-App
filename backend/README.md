@@ -35,7 +35,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
 ## Render tip
-- This repo now includes `runtime.txt` to push Render toward Python 3.12.
+- This repo now includes `.python-version` to push Render toward Python 3.12.
 - If Render shows `No module named 'geopandas'`, check that the service is actually building with Python 3.12 rather than 3.13+.
 
 ## API endpoints
