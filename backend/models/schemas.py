@@ -16,6 +16,7 @@ class UploadResponse(BaseModel):
     filename: str
     feature_count: Optional[int] = None
     storage_key: Optional[str] = None
+    dataset_id: Optional[str] = None
 
 
 class SpatialQueryRequest(BaseModel):
@@ -40,4 +41,5 @@ class AnalysisResponse(BaseModel):
     source: str
     feature_count: int
     geojson: Dict[str, Any]
+    result_storage_key: Optional[str] = None
     message: str = "Analysis complete"

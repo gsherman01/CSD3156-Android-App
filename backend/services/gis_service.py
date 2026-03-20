@@ -11,21 +11,14 @@ import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from backend.config import settings
+from ..config import settings
 
 logger = logging.getLogger("backend.gis")
 
 
 def _load_geopandas():
     """Import GeoPandas lazily so app startup still works without GIS wheels."""
-    try:
-        import geopandas as gpd  # type: ignore
-    except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(
-            "GeoPandas/Shapely dependencies are unavailable. "
-            "Use Python 3.11/3.12 in WSL or install GEOS dev libraries, "
-            "then reinstall requirements."
-        ) from exc
+    import geopandas as gpd  # type: ignore
 
     return gpd
 
@@ -38,10 +31,7 @@ class GISService:
         gpd = _load_geopandas()
 
         if source.startswith("s3://"):
-            try:
-                import boto3
-            except Exception as exc:  # noqa: BLE001
-                raise RuntimeError("boto3 is required to read s3:// sources.") from exc
+            import boto3
 
             bucket, key = source.removeprefix("s3://").split("/", 1)
             client_kwargs = {"region_name": settings.aws_region}

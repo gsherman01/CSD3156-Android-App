@@ -1,0 +1,72 @@
+{
+  "type": "FeatureCollection",
+  "name": "Singapore Demo Planning Areas (sample)",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bishan",
+        "region": "Central",
+        "source_note": "Coordinate adapted from horensen/sg-areas GitHub README example"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.84327, 1.35382]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bukit Merah",
+        "region": "Central",
+        "source_note": "Coordinate adapted from horensen/sg-areas GitHub README example"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.82313, 1.27549]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bukit Timah",
+        "region": "Central",
+        "source_note": "Coordinate adapted from horensen/sg-areas GitHub README example"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.7907, 1.32999]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Downtown Core",
+        "region": "Central",
+        "source_note": "Coordinate adapted from horensen/sg-areas GitHub README example"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.8543, 1.28506]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bayfront",
+        "region": "Central",
+        "source_note": "Coordinate adapted from horensen/sg-areas GitHub README example"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.858533762, 1.28333472525]
+      }
+    }
+  ]
+}

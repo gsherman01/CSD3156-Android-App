@@ -4,8 +4,9 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.models.schemas import AnalysisResponse, SpatialQueryResponse
-from backend.services.gis_service import gis_service
+from ..models.schemas import AnalysisResponse, SpatialQueryResponse
+from ..services.gis_service import gis_service
+from ..services.storage_service import storage_service
 
 logger = logging.getLogger("backend.spatial")
 router = APIRouter(prefix="/api", tags=["spatial"])
@@ -50,12 +51,14 @@ def analyze(
             secondary_source=secondary_source,
         )
         feature_count = len(geojson.get("features", []))
+        result_storage_key = storage_service.save_result_geojson(geojson, operation)
         logger.info(
-            "Analysis complete: operation=%s source=%s secondary=%s features=%s",
+            "Analysis complete: operation=%s source=%s secondary=%s features=%s result=%s",
             operation,
             source,
             secondary_source,
             feature_count,
+            result_storage_key,
         )
         return AnalysisResponse(
             success=True,
@@ -63,6 +66,7 @@ def analyze(
             source=source,
             feature_count=feature_count,
             geojson=geojson,
+            result_storage_key=result_storage_key,
         )
     except RuntimeError as exc:
         logger.error("Analysis runtime error: %s", exc)

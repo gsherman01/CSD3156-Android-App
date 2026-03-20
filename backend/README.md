@@ -1,7 +1,7 @@
 # Backend Quick Start
 
 ## Recommended Python version
-Use **Python 3.11 or 3.12** for full GIS support (GeoPandas + Shapely).
+Use **Python 3.12** for Lambda compatibility, Render compatibility, and full GIS support (GeoPandas + Shapely).
 
 If you use Python 3.14 on Windows CMD, Shapely may fail to build because GEOS headers/tools are missing.
 This project now installs core API dependencies on 3.14, but GIS endpoints will return a clear 503 until GIS deps are available.
@@ -34,11 +34,16 @@ Then open `http://localhost:8000`.
 uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
+## Render tip
+- This repo now includes `.python-version` to push Render toward Python 3.12.
+- If Render shows `No module named 'geopandas'`, check that the service is actually building with Python 3.12 rather than 3.13+.
+
 ## API endpoints
-- `POST /api/upload` — upload GeoJSON.
+- `POST /api/upload` — upload GeoJSON and record lightweight dataset metadata.
 - `GET /api/spatial-query` — run `buffer` or `nearest` on an uploaded dataset.
-- `GET /api/analyze` — run `buffer`, `intersection`, or `nearest` and return GeoJSON.
+- `GET /api/analyze` — run `buffer`, `intersection`, or `nearest`, return GeoJSON, and save a result file.
 - `GET /health` — service health check.
+- `GET /docs` — FastAPI interactive API documentation.
 
 ## Environment config
 Use `cloud/configs/env.example` as the source of truth for runtime variables.
@@ -46,10 +51,26 @@ Use `cloud/configs/env.example` as the source of truth for runtime variables.
 ## Local vs Cloud (simple explanation)
 - **Local mode:** you start the server from your terminal, open localhost, and files are saved in `data/uploads`.
 - **Render mode:** Render starts the same app command automatically, users open a Render URL, and env vars are set in the Render dashboard.
-- **AWS target mode:** API runs behind API Gateway + Lambda, storage moves to S3, but routes and frontend workflow remain the same.
+- **AWS target mode:** API runs behind API Gateway + Lambda, frontend should be hosted separately (for example S3), and storage moves to S3 while routes stay the same.
+
+## Production notes
+- For AWS Lambda, do **not** rely on FastAPI serving `frontend/`; host frontend separately.
+- For S3-hosted frontend + API Gateway backend, replace `YOUR_API_GATEWAY_URL_HERE` in `frontend/app.js`.
+- Tighten CORS to your actual frontend URL before production deployment.
+- Recommended Lambda baseline:
+  - Runtime: Python 3.12
+  - Memory: 512 MB minimum
+  - Timeout: 60 seconds minimum
 
 ## AWS adaptation points
 - `backend/services/storage_service.py` for S3/local storage switching.
 - `backend/lambda_handler.py` for Lambda deployment integration.
-- `backend/main.py` for request logging and centralized error handling.
+- `backend/main.py` for request logging, request IDs, and centralized error handling.
 - `cloud/deployment.md` for step-by-step migration strategy.
+
+
+## Demo datasets
+- Use `data/demo/singapore_demo_points.geojson` as a small Singapore sample dataset for upload/testing.
+- Use `data/demo/singapore_demo_sites.geojson` for nearest-feature and point-based tests.
+- Use `data/demo/singapore_demo_zones.geojson` for polygon buffer and intersection-style tests.
+- The point demo coordinates were adapted from the public `horensen/sg-areas` README examples for Singapore planning areas/subzones.
