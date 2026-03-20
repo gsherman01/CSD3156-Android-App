@@ -1,7 +1,7 @@
 # Backend Quick Start
 
 ## Recommended Python version
-Use **Python 3.12** for Lambda compatibility and full GIS support (GeoPandas + Shapely).
+Use **Python 3.12** for Lambda compatibility, Render compatibility, and full GIS support (GeoPandas + Shapely).
 
 If you use Python 3.14 on Windows CMD, Shapely may fail to build because GEOS headers/tools are missing.
 This project now installs core API dependencies on 3.14, but GIS endpoints will return a clear 503 until GIS deps are available.
@@ -34,6 +34,10 @@ Then open `http://localhost:8000`.
 uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
+## Render tip
+- This repo now includes `runtime.txt` to push Render toward Python 3.12.
+- If Render shows `No module named 'geopandas'`, check that the service is actually building with Python 3.12 rather than 3.13+.
+
 ## API endpoints
 - `POST /api/upload` — upload GeoJSON and record lightweight dataset metadata.
 - `GET /api/spatial-query` — run `buffer` or `nearest` on an uploaded dataset.
@@ -65,6 +69,8 @@ Use `cloud/configs/env.example` as the source of truth for runtime variables.
 - `cloud/deployment.md` for step-by-step migration strategy.
 
 
-## Demo dataset
+## Demo datasets
 - Use `data/demo/singapore_demo_points.geojson` as a small Singapore sample dataset for upload/testing.
-- Coordinates were adapted from the public `horensen/sg-areas` README examples for Singapore planning areas/subzones.
+- Use `data/demo/singapore_demo_sites.geojson` for nearest-feature and point-based tests.
+- Use `data/demo/singapore_demo_zones.geojson` for polygon buffer and intersection-style tests.
+- The point demo coordinates were adapted from the public `horensen/sg-areas` README examples for Singapore planning areas/subzones.
