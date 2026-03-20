@@ -38,7 +38,7 @@ Improve:
 
 ---
 
-# 👤 Member B — Frontend UX & Interaction
+# 👤 Kang Ting — Frontend UX & Interaction
 
 ## 🎯 Objective
 
@@ -97,7 +97,7 @@ When API is triggered:
 
 ---
 
-# 👤 Member C — Dataset Management & Data Integration
+# 👤 Sam Tsang — Dataset Management & Data Integration
 
 ## 🎯 Objective
 
@@ -175,7 +175,7 @@ Integrate one dataset from:
 
 ---
 
-# 👤 Member D — Stability & Cloud Readiness
+# 👤 Bryan Ang — Stability & Cloud Readiness
 
 ## 🎯 Objective
 
@@ -262,7 +262,7 @@ Document how system maps to AWS:
 
 ---
 
-# 👤 Member E — Demo & UI Refinement
+# 👤 Steven — Demo & UI Refinement
 
 ## 🎯 Objective
 
