@@ -23,10 +23,19 @@ logger = logging.getLogger("backend.app")
 
 app = FastAPI(title=settings.app_name)
 
-# Keep this open in development; narrow to specific origins for production/S3 hosting.
+# CORS configuration: Use specific origins in production for security
+# In production, set CORS_ORIGINS env var to your S3 frontend URL
+cors_origins = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else ["*"]
+# Filter out empty strings
+cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+if not cors_origins:
+    cors_origins = ["*"]
+
+logger.info("CORS enabled for origins: %s", cors_origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
