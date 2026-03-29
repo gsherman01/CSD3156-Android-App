@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .routes.spatial import router as spatial_router
 from .routes.upload import router as upload_router
+from .services.storage_service import storage_service
 
 # Configure logging once for stdout (works well for Render/cloud logs).
 logging.basicConfig(
@@ -80,7 +81,12 @@ app.include_router(spatial_router)
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "app": settings.app_name, "env": settings.app_env}
+    storage_available = storage_service.is_available()
+    return {
+        "status": "ok",
+        "storage": "available" if storage_available else "unavailable",
+        "mode": storage_service.get_mode(),
+    }
 
 
 # Static files are useful locally/Render, but should not be served by Lambda.
