@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -z "${FRONTEND_BUCKET_NAME:-}" || -z "${API_BASE_URL:-}" ]]; then
+if [[ -z "${FRONTEND_BUCKET_NAME:-gis-cloud-frontend-3sktb}" || -z "${API_BASE_URL:-https://si0babi5s0.execute-api.ap-southeast-1.amazonaws.com/prod}" ]]; then
   echo "Error: FRONTEND_BUCKET_NAME and API_BASE_URL must be set."
   exit 1
 fi
