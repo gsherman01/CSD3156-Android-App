@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CSD3156 GIS Cloud API (Lambda + API Gateway + S3 static frontend)
+
+Parameters:
+  AppName:
+    Type: String
+    Default: gis-cloud-api
+  StageName:
+    Type: String
+    Default: prod
+  FrontendBucketName:
+    Type: String
+    Description: Globally unique S3 bucket name for static frontend hosting
+  DataBucketName:
+    Type: String
+    Description: Globally unique S3 bucket name for uploads/results storage
+  CorsOrigins:
+    Type: String
+    Default: "*"
+    Description: Comma separated CORS origins for FastAPI
+
+Globals:
+  Function:
+    Runtime: python3.12
+    MemorySize: 1024
+    Timeout: 120
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        APP_ENV: aws
+        LOG_LEVEL: INFO
+        STORAGE_PROVIDER: aws
+        S3_BUCKET_NAME: !Ref DataBucketName
+        CORS_ORIGINS: !Ref CorsOrigins
+
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-function"
+      CodeUri: ../../
+      Handler: backend.lambda_handler.handler
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucketName
+      Events:
+        ApiAny:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /
+            Method: ANY
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref StageName
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref FrontendBucketName
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${FrontendBucketName}/*"
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DataBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  ApiBaseUrl:
+    Description: Invoke URL for API Gateway
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  FrontendWebsiteUrl:
+    Description: S3 static website URL
+    Value: !GetAtt FrontendBucket.WebsiteURL
+
+  DataBucketOutput:
+    Description: Bucket used for uploaded datasets and result files
+    Value: !Ref DataBucket
