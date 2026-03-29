@@ -97,7 +97,7 @@ function selectDataset(storageKey, type, buttonEl) {
     // Update visual selection
     document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('selected-primary'));
     buttonEl.closest('.dataset-item').classList.add('selected-primary');
-    setStatus(`✅ Primary dataset selected`);
+    setStatus(`✅ Primary dataset selected and displayed in green`);
 
     // Load and display on map with green color
     loadDatasetOnMap(storageKey, 'primary');
@@ -105,23 +105,88 @@ function selectDataset(storageKey, type, buttonEl) {
     secondaryKey = storageKey;
     document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('selected-secondary'));
     buttonEl.closest('.dataset-item').classList.add('selected-secondary');
-    setStatus(`✅ Secondary dataset selected`);
+    setStatus(`✅ Secondary dataset selected and displayed in blue`);
 
     // Load and display on map with blue color
     loadDatasetOnMap(storageKey, 'secondary');
+  }
+
+  // Update requirement checkboxes and button states
+  updateDatasetRequirements();
+}
+
+// Update the requirement warning and enable/disable multi-dataset buttons
+function updateDatasetRequirements() {
+  const primaryCheck = document.getElementById('primary-check');
+  const secondaryCheck = document.getElementById('secondary-check');
+  const overlapBtn = document.getElementById('spatialJoinBtn');
+  const nearestBtn = document.getElementById('nearestBtn');
+
+  // Update checkboxes
+  if (primaryCheck) {
+    primaryCheck.textContent = primaryKey ? '✅' : '❌';
+    primaryCheck.style.color = primaryKey ? '#4caf50' : '#f44336';
+  }
+
+  if (secondaryCheck) {
+    secondaryCheck.textContent = secondaryKey ? '✅' : '❌';
+    secondaryCheck.style.color = secondaryKey ? '#2196f3' : '#f44336';
+  }
+
+  // Enable/disable multi-dataset buttons
+  const canDoMultiDataset = primaryKey && secondaryKey;
+  if (overlapBtn) {
+    overlapBtn.disabled = !canDoMultiDataset;
+  }
+  if (nearestBtn) {
+    nearestBtn.disabled = !canDoMultiDataset;
+  }
+
+  // Update warning box styling
+  const warningBox = document.getElementById('dataset-requirement-warning');
+  if (warningBox) {
+    if (canDoMultiDataset) {
+      warningBox.style.background = '#e8f5e9';
+      warningBox.style.color = '#2e7d32';
+      warningBox.style.borderColor = '#4caf50';
+    } else {
+      warningBox.style.background = '#fff3e0';
+      warningBox.style.color = '#f57c00';
+      warningBox.style.borderColor = '#ff9800';
+    }
   }
 }
 
 async function loadDatasetOnMap(storageKey, type) {
   try {
-    // Fetch the GeoJSON from storage
+    showLoading();
+    // Fetch the GeoJSON from storage - use buffer with 0 radius to just get the data
     const res = await fetch(`${API_BASE_URL}/api/analyze?source=${storageKey}&operation=buffer&radius=0`);
     const data = await res.json();
 
     if (data.success && data.geojson) {
       const color = type === 'primary' ? '#4caf50' : '#2196f3';
+
+      // Create layer with both point and polygon styling
       const layer = L.geoJSON(data.geojson, {
-        style: { color: color, weight: 2, fillOpacity: 0.3 }
+        style: function(feature) {
+          return {
+            color: color,
+            weight: 2,
+            fillColor: color,
+            fillOpacity: 0.3
+          };
+        },
+        pointToLayer: function(feature, latlng) {
+          return L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: color,
+            color: color,
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.6
+          });
+        }
       }).addTo(map);
 
       if (type === 'primary') {
@@ -132,6 +197,9 @@ async function loadDatasetOnMap(storageKey, type) {
         secondaryLayer = layer;
       }
 
+      // Update map legend
+      updateMapLegend();
+
       // Fit bounds to show all layers
       const allLayers = [];
       if (primaryLayer) allLayers.push(primaryLayer);
@@ -141,8 +209,33 @@ async function loadDatasetOnMap(storageKey, type) {
         map.fitBounds(group.getBounds());
       }
     }
+    hideLoading();
   } catch (error) {
     console.error('Failed to load dataset on map:', error);
+    setStatus(`❌ Failed to load dataset: ${error.message}`);
+    hideLoading();
+  }
+}
+
+// Update map legend to show active datasets
+function updateMapLegend() {
+  let legendHTML = '<div style="font-weight: bold; margin-bottom: 8px;">📍 Active Datasets:</div>';
+
+  if (primaryLayer) {
+    legendHTML += '<div style="margin-bottom: 4px;"><span style="display: inline-block; width: 20px; height: 3px; background: #4caf50; margin-right: 6px;"></span>Primary Dataset</div>';
+  }
+
+  if (secondaryLayer) {
+    legendHTML += '<div style="margin-bottom: 4px;"><span style="display: inline-block; width: 20px; height: 3px; background: #2196f3; margin-right: 6px;"></span>Secondary Dataset</div>';
+  }
+
+  if (!primaryLayer && !secondaryLayer) {
+    legendHTML += '<div style="color: #999; font-size: 0.85rem;">No datasets selected</div>';
+  }
+
+  const legendEl = document.getElementById('map-legend');
+  if (legendEl) {
+    legendEl.innerHTML = legendHTML;
   }
 }
 
@@ -350,5 +443,7 @@ document.getElementById('bufferBtn').addEventListener('click', () => callAnalysi
 document.getElementById('spatialJoinBtn').addEventListener('click', () => callAnalysis('intersection'));
 document.getElementById('nearestBtn').addEventListener('click', () => callAnalysis('nearest'));
 
-// Initialize: Load datasets on page load (Sam's Task)
+// Initialize: Load datasets and update UI on page load
 loadDatasets();
+updateDatasetRequirements();
+updateMapLegend();
