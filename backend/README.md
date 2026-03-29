@@ -67,7 +67,7 @@ Use `cloud/configs/env.example` as the source of truth for runtime variables.
 From repository root, follow `cloud/aws/README.md` for exact deployment commands.
 
 High-level flow:
-1. `bash cloud/aws/scripts/deploy.sh` to create Lambda + API Gateway + S3 buckets.
+1. `bash cloud/aws/scripts/deploy.sh` to create **Lambda container image** + API Gateway + S3 buckets.
 2. `bash cloud/aws/scripts/sync_frontend.sh` to publish frontend with API URL config.
 3. `curl <ApiBaseUrl>/health` to verify AWS runtime.
 

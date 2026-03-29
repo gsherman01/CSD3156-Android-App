@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: CSD3156 GIS Cloud API (Lambda + API Gateway + S3 static frontend)
+Description: CSD3156 GIS Cloud API (Lambda container image + API Gateway + S3 static frontend)
 
 Parameters:
   AppName:
@@ -22,7 +22,6 @@ Parameters:
 
 Globals:
   Function:
-    Runtime: python3.12
     MemorySize: 1024
     Timeout: 120
     Architectures:
@@ -38,10 +37,13 @@ Globals:
 Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      DockerTag: python312-v1
+      DockerContext: ../../
+      Dockerfile: cloud/aws/Dockerfile
     Properties:
       FunctionName: !Sub "${AppName}-function"
-      CodeUri: ../../
-      Handler: backend.lambda_handler.handler
+      PackageType: Image
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref DataBucketName

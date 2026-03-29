@@ -28,7 +28,7 @@ Open:
 
 ## 2) AWS target architecture (what you are moving to)
 
-- **Backend API**: API Gateway HTTP API → AWS Lambda (`backend.lambda_handler.handler`)
+- **Backend API**: API Gateway HTTP API → AWS Lambda (`backend.lambda_handler.handler`) using a **container image**
 - **Data storage**: Private S3 bucket for uploads/results
 - **Frontend hosting**: S3 static website bucket (or CloudFront in production)
 - **Config model**: environment variables (`STORAGE_PROVIDER=aws`, bucket/region/CORS)
@@ -46,7 +46,8 @@ The repo now includes a ready AWS SAM template and deployment scripts:
 
 1. Install AWS CLI
 2. Install AWS SAM CLI
-3. Configure credentials:
+3. Start Docker Desktop (required for Lambda image builds on Windows/macOS).
+4. Configure credentials:
 ```bash
 aws configure
 ```
@@ -74,10 +75,23 @@ Set your frontend origin for API CORS (use `*` only during initial testing):
 export CORS_ORIGINS=https://<your-frontend-domain>
 ```
 
-## Step C — Deploy Lambda + API Gateway + S3 buckets
+## Step C — Deploy Lambda container + API Gateway + S3 buckets
 
 From repo root:
 ```bash
+bash cloud/aws/scripts/deploy.sh
+```
+
+Windows PowerShell equivalent:
+```powershell
+$env:AWS_REGION="ap-southeast-1"
+$env:APP_NAME="gis-cloud-api"
+$env:STAGE_NAME="prod"
+$env:STACK_NAME="$($env:APP_NAME)-$($env:STAGE_NAME)"
+$env:FRONTEND_BUCKET_NAME="<globally-unique-frontend-bucket>"
+$env:DATA_BUCKET_NAME="<globally-unique-data-bucket>"
+$env:CORS_ORIGINS="https://<your-frontend-domain>"
+
 bash cloud/aws/scripts/deploy.sh
 ```
 
