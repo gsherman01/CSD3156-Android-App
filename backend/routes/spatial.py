@@ -18,10 +18,11 @@ def spatial_query(
     operation: str = Query(..., description="buffer | nearest"),
     radius: float | None = Query(default=None, description="Buffer radius in map units."),
 ) -> SpatialQueryResponse:
+    normalized_operation = operation.strip().lower()
     try:
-        result = gis_service.run_spatial_query(dataset_path, operation, radius)
-        logger.info("Spatial query complete: operation=%s dataset=%s", operation, dataset_path)
-        return SpatialQueryResponse(operation=operation, result=result)
+        result = gis_service.run_spatial_query(dataset_path, normalized_operation, radius)
+        logger.info("Spatial query complete: operation=%s dataset=%s", normalized_operation, dataset_path)
+        return SpatialQueryResponse(operation=normalized_operation, result=result)
     except RuntimeError as exc:
         logger.error("Spatial query runtime error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -30,8 +31,10 @@ def spatial_query(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Spatial query failed")
-        raise HTTPException(status_code=500, detail=f"Spatial query failed: {exc}") from exc
-
+        raise HTTPException(
+            status_code=500,
+            detail="Spatial query failed due to an unexpected server error.",
+        ) from exc
 
 @router.get("/analyze", response_model=AnalysisResponse)
 def analyze(
@@ -43,18 +46,19 @@ def analyze(
         description="Second local path or s3:// URI (required for intersection/nearest)",
     ),
 ) -> AnalysisResponse:
+    normalized_operation = operation.strip().lower()
     try:
         geojson = gis_service.analyze_geojson(
             source=source,
-            operation=operation,
+            operation=normalized_operation,
             radius=radius,
             secondary_source=secondary_source,
         )
         feature_count = len(geojson.get("features", []))
-        result_storage_key = storage_service.save_result_geojson(geojson, operation)
+        result_storage_key = storage_service.save_result_geojson(geojson, normalized_operation)
         logger.info(
             "Analysis complete: operation=%s source=%s secondary=%s features=%s result=%s",
-            operation,
+            normalized_operation,
             source,
             secondary_source,
             feature_count,
@@ -62,7 +66,7 @@ def analyze(
         )
         return AnalysisResponse(
             success=True,
-            operation=operation,
+            operation=normalized_operation,
             source=source,
             feature_count=feature_count,
             geojson=geojson,
@@ -76,4 +80,7 @@ def analyze(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Analysis failed")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}") from exc
+        raise HTTPException(
+            status_code=500,
+            detail="Analysis failed due to an unexpected server error.",
+        ) from exc

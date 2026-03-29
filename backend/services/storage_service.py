@@ -35,6 +35,24 @@ class StorageService:
             return await self._save_to_s3(file, prefix="uploads")
         return await self._save_to_local(file, settings.upload_dir)
 
+    def delete_file(self, storage_key: str) -> None:
+        if not storage_key:
+            return
+
+        try:
+            if storage_key.startswith("s3://"):
+                bucket, key = storage_key.removeprefix("s3://").split("/", 1)
+                self._build_s3_client().delete_object(Bucket=bucket, Key=key)
+                logger.info("Deleted file from S3: %s", storage_key)
+                return
+
+            path = Path(storage_key)
+            if path.exists():
+                path.unlink()
+                logger.info("Deleted local file: %s", storage_key)
+        except (BotoCoreError, ClientError, OSError, ValueError) as exc:
+            logger.warning("Failed to delete stored file %s: %s", storage_key, exc)
+
     def save_result_geojson(self, geojson: dict, operation: str) -> str:
         if settings.storage_provider == "aws":
             return self._save_result_to_s3(geojson, operation)

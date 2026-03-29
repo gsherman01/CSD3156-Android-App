@@ -6,6 +6,7 @@ import time
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -73,6 +74,38 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         getattr(request.state, "request_id", "unknown"),
     )
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return simpler messages for missing or invalid request parameters."""
+    messages: list[str] = []
+
+    for error in exc.errors():
+        location = error.get("loc", [])
+        field_name = location[-1] if location else "request"
+        location_type = location[0] if location else "request"
+
+        if error.get("type") == "missing":
+            if location_type == "query":
+                messages.append(f"Missing required query parameter: {field_name}.")
+            elif location_type == "body":
+                messages.append(f"Missing required request body field: {field_name}.")
+            else:
+                messages.append(f"Missing required field: {field_name}.")
+            continue
+
+        messages.append(f"Invalid value for '{field_name}': {error.get('msg', 'Validation failed')}.")
+
+    detail = " ".join(messages) if messages else "Request validation failed."
+    logger.warning(
+        "Request validation error on %s %s request_id=%s detail=%s",
+        request.method,
+        request.url.path,
+        getattr(request.state, "request_id", "unknown"),
+        detail,
+    )
+    return JSONResponse(status_code=422, content={"detail": detail, "errors": messages})
 
 
 app.include_router(upload_router)
