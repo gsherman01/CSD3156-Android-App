@@ -1,11 +1,15 @@
 // Minimal Leaflet UI for testing backend GIS endpoints.
-const API_BASE_URL = (
+const configuredApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL || '';
+const isLocalOrRender =
   window.location.hostname.includes('localhost') ||
   window.location.hostname.includes('127.0.0.1') ||
-  window.location.hostname.includes('onrender.com')
-)
-  ? ''
-  : 'https://YOUR_API_GATEWAY_URL_HERE';
+  window.location.hostname.includes('onrender.com');
+
+const API_BASE_URL = configuredApiBaseUrl
+  ? configuredApiBaseUrl.replace(/\/$/, '')
+  : isLocalOrRender
+    ? ''
+    : 'https://YOUR_API_GATEWAY_URL_HERE';
 
 console.log('Using API base URL:', API_BASE_URL || '(relative)');
 

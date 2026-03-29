@@ -1,0 +1,18 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.mp4
+*.pptx
+*.docx
+*.zip
+App TinyCell/
+cloud/configs/
+data/
+frontend/
+*.geojson
+*.png
