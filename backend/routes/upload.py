@@ -14,6 +14,27 @@ router = APIRouter(prefix="/api", tags=["upload"])
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB limit for Lambda/API Gateway friendliness.
 
 
+@router.get("/datasets")
+def list_datasets() -> dict:
+    """List all uploaded datasets with metadata."""
+    try:
+        datasets = registry._read_all()
+        logger.info("Retrieved %d datasets from registry", len(datasets))
+        return {
+            "success": True,
+            "count": len(datasets),
+            "datasets": datasets,
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to retrieve datasets")
+        return {
+            "success": False,
+            "count": 0,
+            "datasets": [],
+            "error": str(exc),
+        }
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse:
     if not file.filename or not file.filename.lower().endswith((".geojson", ".json")):
