@@ -61,3 +61,8 @@ Expected:
 - Add WAF and request throttling.
 - Add Cognito authorizer for protected API routes.
 - Add lifecycle/retention policies on data bucket.
+
+
+## Troubleshooting
+
+- If CloudFormation reports `reserved keys` for Lambda environment variables, do not set platform-reserved names (for example `AWS_REGION`) in your template. Lambda already injects these at runtime.

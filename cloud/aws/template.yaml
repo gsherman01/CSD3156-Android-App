@@ -32,7 +32,6 @@ Globals:
         APP_ENV: aws
         LOG_LEVEL: INFO
         STORAGE_PROVIDER: aws
-        AWS_REGION: !Ref AWS::Region
         S3_BUCKET_NAME: !Ref DataBucketName
         CORS_ORIGINS: !Ref CorsOrigins
 

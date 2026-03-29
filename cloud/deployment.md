@@ -119,6 +119,7 @@ Then open your `FrontendWebsiteUrl`, upload a sample GeoJSON, and run one analys
 
 - Backend automatically switches to S3 when `STORAGE_PROVIDER=aws`.
 - Lambda uses IAM role permissions from the SAM template (no hardcoded secrets required).
+- Do not set reserved Lambda environment variable keys (such as `AWS_REGION`) in CloudFormation/SAM; Lambda injects them automatically.
 - Frontend reads `window.__APP_CONFIG__.API_BASE_URL` from `config.js`, so you can redeploy frontend without editing source code.
 
 ---
