@@ -46,6 +46,8 @@ bash cloud/aws/scripts/deploy.sh
 
 After deploy, copy `ApiBaseUrl` and `FrontendWebsiteUrl` from outputs.
 
+Note: SAM sets `API_GATEWAY_BASE_PATH=/${STAGE_NAME}` for Lambda so requests like `/prod/health` route correctly to FastAPI `/health`.
+
 ## 4) Publish frontend configured for API Gateway
 
 ```bash

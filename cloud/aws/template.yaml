@@ -33,6 +33,7 @@ Globals:
         STORAGE_PROVIDER: aws
         S3_BUCKET_NAME: !Ref DataBucketName
         CORS_ORIGINS: !Ref CorsOrigins
+        API_GATEWAY_BASE_PATH: !Sub "/${StageName}"
 
 Resources:
   ApiFunction:

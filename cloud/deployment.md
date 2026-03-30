@@ -31,7 +31,7 @@ Open:
 - **Backend API**: API Gateway HTTP API → AWS Lambda (`backend.lambda_handler.handler`) using a **container image**
 - **Data storage**: Private S3 bucket for uploads/results
 - **Frontend hosting**: S3 static website bucket (or CloudFront in production)
-- **Config model**: environment variables (`STORAGE_PROVIDER=aws`, bucket/region/CORS)
+- **Config model**: environment variables (`STORAGE_PROVIDER=aws`, bucket/region/CORS/base-path)
 
 The repo now includes a ready AWS SAM template and deployment scripts:
 - `cloud/aws/template.yaml`
@@ -97,6 +97,7 @@ bash cloud/aws/scripts/deploy.sh
 
 This command:
 - Builds and deploys the SAM stack
+- Injects `API_GATEWAY_BASE_PATH=/${STAGE_NAME}` so stage-prefixed routes resolve correctly
 - Creates Lambda + API Gateway HTTP API
 - Creates frontend website bucket + policy
 - Creates private data bucket
