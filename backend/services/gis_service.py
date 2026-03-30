@@ -195,6 +195,4 @@ class GISService:
         raise GISValidationError(f"Unsupported analysis operation: {operation}")
 
 
-Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-
 gis_service = GISService()

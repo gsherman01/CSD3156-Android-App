@@ -22,15 +22,28 @@ class DatasetRegistry:
 
     def __init__(self) -> None:
         self.registry_path = Path(settings.metadata_registry_path)
+        self._in_memory_rows: list[dict] = []
+
+        # Lambda filesystem is read-only except /tmp. In AWS mode we avoid
+        # startup writes under data/* and keep lightweight metadata in memory.
+        if settings.storage_provider == "aws":
+            logger.info("Dataset registry running in in-memory mode for AWS storage provider")
+            return
+
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
         if not self.registry_path.exists():
             self.registry_path.write_text("[]", encoding="utf-8")
         self._initialize_demo_datasets()
 
     def _read_all(self) -> list[dict]:
+        if settings.storage_provider == "aws":
+            return list(self._in_memory_rows)
         return json.loads(self.registry_path.read_text(encoding="utf-8"))
 
     def _write_all(self, rows: list[dict]) -> None:
+        if settings.storage_provider == "aws":
+            self._in_memory_rows = list(rows)
+            return
         self.registry_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
 
     def create_dataset_record(self, filename: str, storage_key: str, summary: dict) -> str:
