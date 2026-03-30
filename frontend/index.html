@@ -13,38 +13,482 @@
       crossorigin=""
     />
     <style>
-      body { font-family: Arial, sans-serif; margin: 0; }
-      #toolbar {
-        padding: 12px;
+      * { box-sizing: border-box; }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* Instruction Panel - Stays at Top */
+      #instructions {
+        background: #e3f2fd;
+        padding: 16px;
+        border-bottom: 2px solid #2196f3;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        flex-shrink: 0;
+      }
+      #instructions h3 {
+        margin: 0 0 12px 0;
+        color: #1976d2;
+        font-size: 1.1rem;
+      }
+      #instructions ol {
+        margin: 0;
+        padding-left: 24px;
+        color: #424242;
+      }
+      #instructions li {
+        margin-bottom: 6px;
+        font-size: 0.95rem;
+      }
+
+      /* Main Content Area - Sidebar + Map */
+      #main-content {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* Left Sidebar - Contains Datasets + Controls */
+      #sidebar {
+        width: 350px;
         background: #f5f5f5;
-        display: grid;
-        gap: 8px;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        border-right: 2px solid #ddd;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        flex-shrink: 0;
+      }
+
+      /* Dataset Manager Panel */
+      #dataset-panel {
+        background: #fff3e0;
+        padding: 16px;
+        border-bottom: 2px solid #ff9800;
+      }
+      #dataset-panel h3 {
+        margin: 0 0 12px 0;
+        color: #e65100;
+        font-size: 1rem;
+      }
+      .dataset-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      /* Control Panel (Upload + Operations) */
+      #control-panel {
+        padding: 16px;
+        background: white;
+        flex: 1;
+      }
+      #control-panel h3 {
+        margin: 0 0 12px 0;
+        color: #333;
+        font-size: 1rem;
+      }
+      .control-section {
+        margin-bottom: 20px;
+      }
+      .control-section-title {
+        font-weight: bold;
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #ddd;
+      }
+      #control-panel input, #control-panel button {
+        width: 100%;
+        padding: 10px;
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      #control-panel button {
+        background: #2196f3;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+      }
+      #control-panel button:hover:not(:disabled) {
+        background: #1976d2;
+      }
+
+      /* Map Container */
+      #map-container {
+        flex: 1;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Map Legend */
+      #map-legend {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 12px;
+        border: 2px solid #333;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        min-width: 180px;
+      }
+
+      /* Tooltips */
+      .tooltip-wrapper {
+        position: relative;
+        display: inline-block;
+      }
+      .tooltip {
+        visibility: hidden;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        padding: 8px 12px;
+        border-radius: 6px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 220px;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+      }
+      .tooltip-wrapper:hover .tooltip {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      /* Loading Indicator */
+      #loading {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 20px 40px;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        z-index: 2000;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      }
+      #loading.active {
+        display: block;
+      }
+
+      /* Spinner animation */
+      .spinner {
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top: 3px solid white;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Disabled state */
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Dataset Items in Sidebar */
+      .dataset-item {
+        background: white;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        padding: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .dataset-item:hover {
+        border-color: #ff9800;
+        box-shadow: 0 2px 8px rgba(255,152,0,0.3);
+      }
+      .dataset-item.selected-primary {
+        border-color: #4caf50;
+        background: #e8f5e9;
+      }
+      .dataset-item.selected-secondary {
+        border-color: #2196f3;
+        background: #e3f2fd;
+      }
+      .dataset-name {
+        font-weight: bold;
+        font-size: 0.85rem;
+        margin-bottom: 4px;
+        color: #333;
+      }
+      .dataset-meta {
+        font-size: 0.75rem;
+        color: #666;
+        margin-bottom: 6px;
+      }
+      .dataset-badge {
+        display: inline-block;
+        background: #ff9800;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.7rem;
+        margin-left: 4px;
+      }
+      .dataset-selection-buttons {
+        margin-top: 6px;
+        display: flex;
+        gap: 4px;
+      }
+      .dataset-selection-buttons button {
+        flex: 1;
+        padding: 4px 6px;
+        font-size: 0.7rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .btn-primary {
+        background: #4caf50;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #388e3c;
+      }
+      .btn-secondary {
+        background: #2196f3;
+        color: white;
+      }
+      .btn-secondary:hover {
+        background: #1976d2;
+      }
+
+      /* Result Summary Panel - Overlay on Map */
+      #result-summary {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(243, 229, 245, 0.97);
+        padding: 16px;
+        border: 2px solid #9c27b0;
+        border-radius: 8px;
+        display: none;
+        max-width: 350px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 1000;
+      }
+      #result-summary.visible {
+        display: block;
+      }
+      #result-summary h3 {
+        margin: 0 0 12px 0;
+        color: #6a1b9a;
+        font-size: 1rem;
+        display: flex;
+        justify-content: space-between;
         align-items: center;
       }
-      #toolbar input, #toolbar button { padding: 8px; font-size: 0.9rem; }
-      #map { height: calc(100vh - 170px); }
-      #status { grid-column: 1 / -1; font-size: 0.9rem; color: #333; }
-      .hint { grid-column: 1 / -1; font-size: 0.8rem; color: #666; }
+      .close-summary {
+        background: none;
+        border: none;
+        color: #6a1b9a;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        line-height: 1;
+      }
+      .close-summary:hover {
+        color: #4a148c;
+      }
+      .summary-content {
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: #424242;
+      }
+      .summary-stat {
+        display: inline-block;
+        background: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin-right: 10px;
+        margin-bottom: 8px;
+        border: 1px solid #9c27b0;
+        font-size: 0.85rem;
+      }
+      .summary-stat strong {
+        color: #6a1b9a;
+      }
+
+      /* Status Bar at Bottom of Sidebar */
+      #status-bar {
+        padding: 12px 16px;
+        background: #e3f2fd;
+        border-top: 2px solid #2196f3;
+        font-size: 0.85rem;
+        color: #1976d2;
+        font-weight: 500;
+      }
+
+      /* Map fills remaining space */
+      #map {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+      }
     </style>
   </head>
   <body>
-    <!-- Minimal controls to test upload and analysis endpoints -->
-    <div id="toolbar">
-      <input type="file" id="geojsonFilePrimary" accept=".geojson,.json" />
-      <input type="file" id="geojsonFileSecondary" accept=".geojson,.json" />
-      <input type="number" id="bufferRadius" step="0.001" value="0.01" placeholder="Buffer radius" />
-
-      <button id="uploadPrimaryBtn">Upload Primary</button>
-      <button id="uploadSecondaryBtn">Upload Secondary</button>
-      <button id="bufferBtn">Buffer analysis</button>
-      <button id="spatialJoinBtn">Spatial join</button>
-      <button id="nearestBtn">Nearest feature</button>
-
-      <div class="hint">Spatial join and nearest use both primary + secondary datasets.</div>
-      <span id="status">Ready.</span>
+    <!-- Instruction Panel - Stays at Top -->
+    <div id="instructions">
+      <h3>🗺️ How to Use This GIS Platform</h3>
+      <ol>
+        <li><strong>Select Dataset:</strong> Choose from available datasets or upload your own GeoJSON file</li>
+        <li><strong>Perform Analysis:</strong> Use the analysis tools in the sidebar</li>
+        <li><strong>View Results:</strong> Results appear on the map with an analysis summary</li>
+      </ol>
     </div>
-    <div id="map"></div>
+
+    <!-- Main Content Area: Sidebar + Map -->
+    <div id="main-content">
+      <!-- Left Sidebar -->
+      <div id="sidebar">
+        <!-- Dataset Manager Panel -->
+        <div id="dataset-panel">
+          <h3>📂 Available Datasets</h3>
+          <div id="dataset-list" class="dataset-grid">
+            <div style="color: #666; font-size: 0.9rem;">Loading datasets...</div>
+          </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div id="control-panel">
+          <h3>🎛️ Analysis Tools</h3>
+
+          <!-- Upload Section -->
+          <div class="control-section">
+            <div class="control-section-title">📤 Upload New Dataset</div>
+            <input type="file" id="geojsonFilePrimary" accept=".geojson,.json" />
+            <button id="uploadPrimaryBtn">Upload as Primary</button>
+            <input type="file" id="geojsonFileSecondary" accept=".geojson,.json" />
+            <button id="uploadSecondaryBtn">Upload as Secondary</button>
+          </div>
+
+          <!-- Buffer Analysis Section -->
+          <div class="control-section">
+            <div class="control-section-title">🎯 Proximity Analysis</div>
+            <label style="font-size: 0.85rem; color: #666; display: block; margin-bottom: 4px;">
+              Buffer Radius (in map units, e.g., 0.5 = 500m)
+            </label>
+            <input
+              type="number"
+              id="bufferRadius"
+              step="0.01"
+              value="0.5"
+              placeholder="e.g., 0.5 for 500m"
+              style="margin-bottom: 8px;"
+            />
+            <button id="bufferBtn">
+              🎯 Find Nearby Area
+            </button>
+            <div style="font-size: 0.75rem; color: #666; margin-top: 4px; line-height: 1.3;">
+              Creates a coverage zone around selected features (e.g., 500m walking distance from MRT stations)
+            </div>
+          </div>
+
+          <!-- Multi-Dataset Operations -->
+          <div class="control-section">
+            <div class="control-section-title">🔗 Multi-Dataset Analysis</div>
+            <div id="dataset-requirement-warning" style="font-size: 0.75rem; color: #f57c00; margin-bottom: 8px; background: #fff3e0; padding: 8px; border-radius: 4px; border: 1px solid #ff9800;">
+              <div style="font-weight: bold; margin-bottom: 4px;">⚠️ Requirements:</div>
+              <div id="req-primary" style="margin-left: 16px;">
+                <span id="primary-check">❌</span> Primary Dataset
+              </div>
+              <div id="req-secondary" style="margin-left: 16px;">
+                <span id="secondary-check">❌</span> Secondary Dataset
+              </div>
+            </div>
+            <button id="spatialJoinBtn" disabled>
+              🔗 Find Overlapping Areas
+            </button>
+            <div style="font-size: 0.75rem; color: #666; margin-top: 4px; margin-bottom: 12px; line-height: 1.3;">
+              <strong>What it does:</strong> Identifies areas where two datasets overlap
+              <br><strong>Example:</strong> Residential zones within 500m of MRT stations
+            </div>
+            <button id="nearestBtn" disabled>
+              📍 Find Closest Location
+            </button>
+            <div style="font-size: 0.75rem; color: #666; margin-top: 4px; line-height: 1.3;">
+              <strong>What it does:</strong> Finds nearest feature relationships
+              <br><strong>Example:</strong> Closest MRT station to each building
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Bar at Bottom of Sidebar -->
+        <div id="status-bar">
+          <span id="status">Ready</span>
+        </div>
+      </div>
+
+      <!-- Map Container -->
+      <div id="map-container">
+        <div id="map"></div>
+
+        <!-- Map Legend (Bottom Left) -->
+        <div id="map-legend">
+          <div style="font-weight: bold; margin-bottom: 8px;">📍 Active Datasets:</div>
+          <div style="color: #999; font-size: 0.85rem;">No datasets selected</div>
+        </div>
+
+        <!-- Result Summary Panel (Top Right Overlay) -->
+        <div id="result-summary">
+          <h3>
+            📊 Analysis Results
+            <button class="close-summary" onclick="document.getElementById('result-summary').classList.remove('visible')" title="Close">×</button>
+          </h3>
+          <div id="summary-content" class="summary-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <div>Processing...</div>
+    </div>
 
     <!-- Leaflet JS and app logic -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
