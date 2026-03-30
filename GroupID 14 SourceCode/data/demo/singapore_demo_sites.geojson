@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "name": "Singapore Demo Sites",
+  "crs": {
+    "type": "name",
+    "properties": { "name": "EPSG:4326" }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Site 1", "type": "facility" },
+      "geometry": { "type": "Point", "coordinates": [103.835, 1.295] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Site 2", "type": "facility" },
+      "geometry": { "type": "Point", "coordinates": [103.852, 1.312] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Site 3", "type": "facility" },
+      "geometry": { "type": "Point", "coordinates": [103.868, 1.325] }
+    }
+  ]
+}
