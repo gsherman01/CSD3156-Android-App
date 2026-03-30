@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     host: str = "0.0.0.0"
     port: int = 8000
+    api_gateway_base_path: str = ""
 
     # Storage mode: local | aws
     storage_provider: str = "local"
