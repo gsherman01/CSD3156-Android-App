@@ -1,165 +1,161 @@
-# Deployment Strategy: Local → Render → AWS
+# Deployment Strategy: Local → Render → AWS (Exact Steps)
 
-This guide is intentionally beginner-friendly and practical.
-
----
-
-## 1) Development Flow (Local First)
-
-### Where developers work
-- Write code locally in VS Code (or any IDE).
-- Use terminal (CMD/PowerShell/WSL) for setup and running the app.
-
-### Run backend locally
-1. Create virtual environment and install dependencies.
-2. Start FastAPI with Uvicorn:
-   ```bash
-   uvicorn backend.main:app --reload --host 0.0.0.0 --port ${PORT:-8000}
-   ```
-3. Backend is available at `http://localhost:8000`.
-4. API docs are available at `http://localhost:8000/docs`.
-
-### Run frontend locally
-- Frontend is served by FastAPI static mount.
-- Open `http://localhost:8000` in browser.
-
-### Local file storage behavior
-- Keep `STORAGE_PROVIDER=local`.
-- Uploaded files are written to `UPLOAD_DIR` (default: `data/uploads`).
-- Analysis results are written separately to `RESULTS_DIR` (default: `data/results`).
-- Lightweight dataset metadata is tracked in `METADATA_REGISTRY_PATH` for demo/Render workflows.
+This guide gives you concrete commands to migrate this project to AWS safely.
 
 ---
 
-## 2) Render Deployment (Intermediate Step)
+## 1) Keep local development stable first
 
-### How code is deployed from GitHub to Render
-1. Push code to GitHub repository.
-2. In Render dashboard, create a new **Web Service** from that GitHub repo.
-3. Select branch (for example `main` or your working branch).
+### Backend (local)
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+uvicorn backend.main:app --reload --host 0.0.0.0 --port ${PORT:-8000}
+```
 
-### Backend hosting on Render
-- Runtime: Python 3.12 recommended.
-- Add `.python-version` with a Python 3.12 value so Render does not default to a newer runtime that skips GeoPandas.
-- Build command:
-  ```bash
-  pip install -r requirements.txt
-  ```
-- Start command:
-  ```bash
-  uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
-  ```
+Check:
+```bash
+curl http://localhost:8000/health
+```
 
-### Frontend serving on Render
-- No separate frontend service is required in this intermediate architecture.
-- FastAPI serves frontend files directly at the root path (`/`).
-
-### Required Render configuration
-- Render injects `PORT` automatically.
-- Important env vars:
-  - `APP_ENV=render`
-  - `LOG_LEVEL=INFO`
-  - `STORAGE_PROVIDER=local` (or `aws` if testing S3 mode)
-  - `UPLOAD_DIR=data/uploads`
-- Optional S3 mode on Render:
-  - `AWS_REGION`
-  - `S3_BUCKET_NAME`
-  - `AWS_ACCESS_KEY_ID`
-  - `AWS_SECRET_ACCESS_KEY`
-  - `AWS_SESSION_TOKEN` (optional)
+### Frontend (local)
+Open:
+- `http://localhost:8000`
 
 ---
 
-## 3) AWS Migration Plan (Final Target)
+## 2) AWS target architecture (what you are moving to)
 
-### Backend to AWS Lambda
-- Keep service logic in `backend/services/*` so route logic can be reused.
-- Use `backend/lambda_handler.py` (Mangum adapter) as Lambda entrypoint.
-- Recommended Lambda baseline:
-  - Runtime: Python 3.12
-  - Memory: 512 MB minimum
-  - Timeout: 60 seconds minimum
-  - Increase timeout to 300 seconds for heavier GIS tasks if needed
+- **Backend API**: API Gateway HTTP API → AWS Lambda (`backend.lambda_handler.handler`) using a **container image**
+- **Data storage**: Private S3 bucket for uploads/results
+- **Frontend hosting**: S3 static website bucket (or CloudFront in production)
+- **Config model**: environment variables (`STORAGE_PROVIDER=aws`, bucket/region/CORS/base-path)
 
-### Important Lambda packaging note
-- GeoPandas and related GIS libraries are large.
-- ZIP deployment may hit Lambda size limits.
-- Recommended approach:
-  1. Try a prebuilt GeoPandas Lambda layer first.
-  2. If that is not practical in your Learner Lab, deploy Lambda as a container image.
-
-### API Gateway replaces direct backend URL
-- API Gateway becomes public HTTP endpoint.
-- It forwards requests to Lambda.
-- Existing route structure (`/api/upload`, `/api/analyze`, etc.) can remain the same.
-- Test `GET /health` through API Gateway after deployment.
-
-### Frontend in final AWS setup
-- Do **not** serve frontend from Lambda.
-- Host frontend separately, typically on S3 static website hosting (optionally with CloudFront later).
-- Update frontend API base URL to your API Gateway URL.
-
-### S3 replaces local file storage
-- Set `STORAGE_PROVIDER=aws`.
-- Upload/read flows use boto3 and `s3://...` URIs.
-- No endpoint contract change needed because storage is abstracted in service layer.
-
-### Cognito integration path
-- Add Cognito User Pool for login.
-- Configure API Gateway authorizer with Cognito.
-- Protect selected API routes while keeping public routes (like health) open.
+The repo now includes a ready AWS SAM template and deployment scripts:
+- `cloud/aws/template.yaml`
+- `cloud/aws/scripts/deploy.sh`
+- `cloud/aws/scripts/sync_frontend.sh`
 
 ---
 
-## 4) Key Design Decisions (to avoid rewrites)
+## 3) Exact AWS migration steps
 
-### Built now for future migration
-- Storage abstraction (`local` vs `aws`) behind one service API.
-- Centralized config via environment variables.
-- Route layer handles HTTP only; heavy logic stays in service modules.
-- Static frontend mount is disabled automatically in Lambda environments.
+## Step A — Install and authenticate tooling
 
-### Must NOT be hardcoded
-- Port number
-- Upload path
-- AWS bucket/region
-- AWS credentials
-- Environment mode
-- API Gateway production URL
+1. Install AWS CLI
+2. Install AWS SAM CLI
+3. Start Docker Desktop (required for Lambda image builds on Windows/macOS).
+4. Configure credentials:
+```bash
+aws configure
+```
 
-### Environment variable usage
-- Local: safe defaults work out of the box.
-- Render: set env vars in Render dashboard.
-- AWS: set env vars in Lambda configuration or rely on IAM role.
+Optional identity check:
+```bash
+aws sts get-caller-identity
+```
 
-### Production CORS note
-- `allow_origins=["*"]` is okay for development.
-- In production, change it to your actual frontend URL(s), such as:
-  - local testing URL
-  - Render URL
-  - S3 frontend URL
-- In API Gateway, ensure CORS/OPTIONS is enabled for browser preflight requests.
+## Step B — Choose names and region
+
+Use globally unique bucket names:
+```bash
+export AWS_REGION=ap-southeast-1
+export APP_NAME=gis-cloud-api
+export STAGE_NAME=prod
+export STACK_NAME=${APP_NAME}-${STAGE_NAME}
+
+export FRONTEND_BUCKET_NAME=gis-cloud-frontend-<unique-suffix>
+export DATA_BUCKET_NAME=gis-cloud-data-<unique-suffix>
+```
+
+Set your frontend origin for API CORS (use `*` only during initial testing):
+```bash
+export CORS_ORIGINS=https://<your-frontend-domain>
+```
+
+## Step C — Deploy Lambda container + API Gateway + S3 buckets
+
+From repo root:
+```bash
+bash cloud/aws/scripts/deploy.sh
+```
+
+Windows PowerShell equivalent:
+```powershell
+$env:AWS_REGION="ap-southeast-1"
+$env:APP_NAME="gis-cloud-api"
+$env:STAGE_NAME="prod"
+$env:STACK_NAME="$($env:APP_NAME)-$($env:STAGE_NAME)"
+$env:FRONTEND_BUCKET_NAME="<globally-unique-frontend-bucket>"
+$env:DATA_BUCKET_NAME="<globally-unique-data-bucket>"
+$env:CORS_ORIGINS="https://<your-frontend-domain>"
+
+bash cloud/aws/scripts/deploy.sh
+```
+
+This command:
+- Builds and deploys the SAM stack
+- Injects `API_GATEWAY_BASE_PATH=/${STAGE_NAME}` so stage-prefixed routes resolve correctly
+- Creates Lambda + API Gateway HTTP API
+- Creates frontend website bucket + policy
+- Creates private data bucket
+- Prints stack outputs (including `ApiBaseUrl` and `FrontendWebsiteUrl`)
+
+## Step D — Publish frontend with API URL injected
+
+Use the API URL returned from Step C:
+```bash
+export API_BASE_URL=<ApiBaseUrl-from-stack-output>
+bash cloud/aws/scripts/sync_frontend.sh
+```
+
+This uploads:
+- `frontend/index.html`
+- `frontend/app.js`
+- generated `config.js` containing your API URL
+
+## Step E — Run smoke tests
+
+```bash
+curl "${API_BASE_URL}/health"
+```
+Expected:
+```json
+{"status":"ok","app":"GIS Cloud API","env":"aws"}
+```
+
+Then open your `FrontendWebsiteUrl`, upload a sample GeoJSON, and run one analysis operation.
 
 ---
 
-## 5) Local vs Cloud Execution (Concrete View)
+## 4) App configuration behavior after migration
 
-### Mode A: Local Development Mode
-- Code runs on your own machine.
-- You start backend manually with Uvicorn.
-- Frontend is opened via `http://localhost:8000`.
-- Files are saved to local folder (`data/uploads`).
-- User experience: quick testing and debugging.
+- Backend automatically switches to S3 when `STORAGE_PROVIDER=aws`.
+- Lambda uses IAM role permissions from the SAM template (no hardcoded secrets required).
+- Do not set reserved Lambda environment variable keys (such as `AWS_REGION`) in CloudFormation/SAM; Lambda injects them automatically.
+- Frontend reads `window.__APP_CONFIG__.API_BASE_URL` from `config.js`, so you can redeploy frontend without editing source code.
 
-### Mode B: Cloud Deployment Mode
-- Code runs on Render (now) or AWS (later).
-- Platform starts backend using the start command.
-- Frontend is accessed via public service URL.
-- Files are local temporary storage on Render, or S3 in AWS mode.
-- User experience: public access over internet, cloud logs, persistent service URL.
+---
 
-### What changes when moving Local → Render → AWS
-- **Changes:** hosting location, URL, environment variable source, storage backend, and final frontend hosting location.
-- **Stays same:** API endpoints, frontend workflow, request/response structure, and core GIS logic.
+## 5) Production hardening checklist
 
-This stability is the main reason the architecture uses config + service abstraction.
+Before final production cutover, do these:
+
+1. Replace S3 website with CloudFront + Origin Access Control.
+2. Restrict CORS to exact frontend URL(s) only.
+3. Add AWS WAF and API throttling.
+4. Add Cognito authorizer for protected API routes.
+5. Add CloudWatch alarms (5XX count, Lambda errors, duration, throttles).
+6. Add S3 lifecycle policies for upload/result retention.
+
+---
+
+## 6) Rollback strategy
+
+If a deployment fails:
+- Use previous CloudFormation stack state (automatic rollback).
+- Keep old frontend `config.js` and re-sync known working assets.
+- Switch DNS / user links back only after `/health` and one analysis endpoint both pass.
+

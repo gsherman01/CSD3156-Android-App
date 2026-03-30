@@ -21,7 +21,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("backend.app")
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title=settings.app_name, root_path=settings.api_gateway_base_path)
+if settings.api_gateway_base_path:
+    logger.info("API Gateway base path configured: %s", settings.api_gateway_base_path)
 
 # CORS configuration: Use specific origins in production for security
 # In production, set CORS_ORIGINS env var to your S3 frontend URL
