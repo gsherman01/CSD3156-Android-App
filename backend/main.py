@@ -49,6 +49,13 @@ async def request_logging_middleware(request: Request, call_next):
     """Log request method/path/status/latency for basic monitoring."""
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
+    logger.info(
+        "Request received: method=%s path=%s query=%s request_id=%s",
+        request.method,
+        request.url.path,
+        request.url.query or "-",
+        request_id,
+    )
     start = time.perf_counter()
     response = await call_next(request)
     duration_ms = (time.perf_counter() - start) * 1000

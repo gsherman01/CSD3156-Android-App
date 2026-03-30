@@ -4,7 +4,7 @@ import json
 import logging
 from json import JSONDecodeError
 
-from fastapi import APIRouter, File, UploadFile, status
+from fastapi import APIRouter, File, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from ..models.schemas import UploadResponse
@@ -15,6 +15,10 @@ from ..services.storage_service import storage_service
 logger = logging.getLogger("backend.upload")
 router = APIRouter(prefix="/api", tags=["upload"])
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB limit for Lambda/API Gateway friendliness.
+
+
+def _request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", "unknown")
 
 
 def upload_error_response(
@@ -35,18 +39,20 @@ def upload_error_response(
 
 
 @router.get("/datasets", response_model=None)
-def list_datasets():
+def list_datasets(request: Request):
     """List all uploaded datasets with metadata."""
+    request_id = _request_id(request)
+    logger.info("Dataset list processing started request_id=%s", request_id)
     try:
         datasets = registry._read_all()
-        logger.info("Retrieved %d datasets from registry", len(datasets))
+        logger.info("Dataset list complete: count=%d request_id=%s", len(datasets), request_id)
         return {
             "success": True,
             "count": len(datasets),
             "datasets": datasets,
         }
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to retrieve datasets")
+        logger.exception("Dataset list failed request_id=%s", request_id)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
@@ -68,9 +74,18 @@ def list_datasets():
         503: {"model": UploadResponse},
     },
 )
-async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONResponse:
+async def upload_geojson(
+    request: Request,
+    file: UploadFile = File(...),
+) -> UploadResponse | JSONResponse:
+    request_id = _request_id(request)
+    logger.info("Upload processing started: filename=%s request_id=%s", file.filename, request_id)
     if not file.filename or not file.filename.lower().endswith((".geojson", ".json")):
-        logger.warning("Rejected upload with unsupported extension: %s", file.filename)
+        logger.warning(
+            "Rejected upload with unsupported extension: %s request_id=%s",
+            file.filename,
+            request_id,
+        )
         return upload_error_response(
             status.HTTP_400_BAD_REQUEST,
             message="Only GeoJSON files are supported.",
@@ -82,7 +97,7 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
     try:
         file_contents = await file.read()
         if not file_contents.strip():
-            logger.warning("Rejected empty upload: %s", file.filename)
+            logger.warning("Rejected empty upload: %s request_id=%s", file.filename, request_id)
             return upload_error_response(
                 status.HTTP_400_BAD_REQUEST,
                 message="Uploaded file is empty.",
@@ -92,7 +107,7 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
         try:
             json.loads(file_contents)
         except JSONDecodeError:
-            logger.warning("Rejected invalid JSON upload: %s", file.filename)
+            logger.warning("Rejected invalid JSON upload: %s request_id=%s", file.filename, request_id)
             return upload_error_response(
                 status.HTTP_400_BAD_REQUEST,
                 message="Uploaded file is not valid JSON/GeoJSON.",
@@ -100,7 +115,12 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
             )
 
         if len(file_contents) > MAX_FILE_SIZE:
-            logger.warning("File too large: %s (%d bytes)", file.filename, len(file_contents))
+            logger.warning(
+                "File too large: %s (%d bytes) request_id=%s",
+                file.filename,
+                len(file_contents),
+                request_id,
+            )
             return upload_error_response(
                 status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 message=f"File too large. Maximum size is {MAX_FILE_SIZE / (1024 * 1024):.0f}MB.",
@@ -108,7 +128,7 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
             )
         await file.seek(0)
     except Exception as exc:  # noqa: BLE001
-        logger.error("Error reading file %s: %s", file.filename, exc)
+        logger.error("Error reading file %s request_id=%s: %s", file.filename, request_id, exc)
         return upload_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             message="Error reading uploaded file.",
@@ -116,16 +136,16 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
         )
 
     try:
-        logger.info("Upload started: %s", file.filename)
         storage_key = await storage_service.save_upload(file)
         summary = gis_service.summarize_geojson(storage_key)
         dataset_id = registry.create_dataset_record(file.filename, storage_key, summary)
         logger.info(
-            "Upload processed: filename=%s storage_key=%s feature_count=%s dataset_id=%s",
+            "Upload complete: filename=%s storage_key=%s feature_count=%s dataset_id=%s request_id=%s",
             file.filename,
             storage_key,
             summary["feature_count"],
             dataset_id,
+            request_id,
         )
         return UploadResponse(
             success=True,
@@ -136,7 +156,7 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
             dataset_id=dataset_id,
         )
     except ValueError as exc:
-        logger.warning("Upload rejected for file=%s: %s", file.filename, exc)
+        logger.warning("Upload rejected for file=%s request_id=%s: %s", file.filename, request_id, exc)
         if storage_key:
             storage_service.delete_file(storage_key)
         return upload_error_response(
@@ -145,7 +165,7 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
             filename=file.filename,
         )
     except RuntimeError as exc:
-        logger.error("Upload failed due to runtime dependency issue: %s", exc)
+        logger.error("Upload failed due to runtime dependency issue request_id=%s: %s", request_id, exc)
         if storage_key:
             storage_service.delete_file(storage_key)
         return upload_error_response(
@@ -154,7 +174,7 @@ async def upload_geojson(file: UploadFile = File(...)) -> UploadResponse | JSONR
             filename=file.filename,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Upload failed unexpectedly for file=%s", file.filename)
+        logger.exception("Upload failed unexpectedly for file=%s request_id=%s", file.filename, request_id)
         if storage_key:
             storage_service.delete_file(storage_key)
         return upload_error_response(
