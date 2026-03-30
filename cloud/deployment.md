@@ -107,7 +107,7 @@ This command:
 
 Use the API URL returned from Step C:
 ```bash
-export API_BASE_URL=<ApiBaseUrl-from-stack-output>
+export API_BASE_URL=https://si0babi5s0.execute-api.ap-southeast-1.amazonaws.com/prod
 bash cloud/aws/scripts/sync_frontend.sh
 ```
 
