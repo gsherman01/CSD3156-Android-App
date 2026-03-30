@@ -31,7 +31,7 @@ if [[ -z "${FRONTEND_BUCKET_NAME}" || -z "${DATA_BUCKET_NAME}" ]]; then
   exit 1
 fi
 
-CORS_ORIGINS="${CORS_ORIGINS:-*}"
+CORS_ORIGINS="${CORS_ORIGINS:-http://gis-cloud-frontend-3sktb.s3-website-ap-southeast-1.amazonaws.com}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_PATH="${SCRIPT_DIR}/../template.yaml"
