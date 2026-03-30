@@ -88,9 +88,28 @@ class StorageService:
         safe_name = Path(file.filename or "upload.geojson").name
         key = f"{prefix}/{stamp}-{safe_name}"
 
-        s3 = self._build_s3_client()
-        s3.upload_fileobj(file.file, settings.s3_bucket_name, key)
-        await file.seek(0)
+        client_kwargs = {"region_name": settings.aws_region}
+        if settings.aws_access_key_id and settings.aws_secret_access_key:
+            client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
+            client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+            if settings.aws_session_token:
+                client_kwargs["aws_session_token"] = settings.aws_session_token
+
+        contents = await file.read()
+
+        s3 = boto3.client("s3", **client_kwargs)
+        s3.put_object(
+            Bucket=settings.s3_bucket_name,
+            Key=key,
+            Body=contents,
+            ContentType=file.content_type or "application/geo+json",
+        )
+
+        # Best effort rewind for any downstream handlers.
+        try:
+            await file.seek(0)
+        except ValueError:
+            logger.warning("Upload file stream already closed after S3 upload: %s", file.filename)
 
         uri = f"s3://{settings.s3_bucket_name}/{key}"
         logger.info("Uploaded file to S3: %s", uri)
